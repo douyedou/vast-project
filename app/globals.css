@@ -1,0 +1,150 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* VAST 8.0 Visual Design System */
+:root {
+  /* Primary Colors */
+  --vast-primary: #1E5EFF;
+  --vast-primary-dark: #123A9C;
+  --vast-primary-light: #EAF0FF;
+  
+  /* Secondary Colors */
+  --vast-teal: #13A38B;
+  --vast-purple: #6F4FF2;
+  --vast-blue: #2F80ED;
+  --vast-cyan: #00A8C8;
+  
+  /* Status Colors */
+  --vast-success: #52C41A;
+  --vast-warning: #FAAD14;
+  --vast-error: #F5222D;
+  --vast-info: #1677FF;
+  --vast-disabled: #BFBFBF;
+  
+  /* Background & Neutral Colors */
+  --vast-bg-page: #F5F7FA;
+  --vast-bg-card: #FFFFFF;
+  --vast-bg-secondary: #F0F3F8;
+  --vast-border: #E5EAF2;
+  --vast-divider: #EEF1F6;
+  
+  /* Text Colors */
+  --vast-text-primary: #1F2937;
+  --vast-text-secondary: #6B7280;
+  --vast-text-muted: #9CA3AF;
+  --vast-text-title: #111827;
+  
+  /* M05 Module Colors */
+  --m05-primary: #2F80ED;
+  --m05-bg: #EAF4FF;
+
+  /* Design Tokens */
+  --background: var(--vast-bg-page);
+  --foreground: var(--vast-text-primary);
+  --card: var(--vast-bg-card);
+  --card-foreground: var(--vast-text-primary);
+  --popover: var(--vast-bg-card);
+  --popover-foreground: var(--vast-text-primary);
+  --primary: var(--vast-primary);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--vast-bg-secondary);
+  --secondary-foreground: var(--vast-text-primary);
+  --muted: var(--vast-bg-secondary);
+  --muted-foreground: var(--vast-text-secondary);
+  --accent: var(--vast-primary-light);
+  --accent-foreground: var(--vast-primary);
+  --destructive: var(--vast-error);
+  --destructive-foreground: #FFFFFF;
+  --border: var(--vast-border);
+  --input: var(--vast-border);
+  --ring: var(--vast-primary);
+  --chart-1: var(--vast-primary);
+  --chart-2: var(--vast-teal);
+  --chart-3: var(--vast-purple);
+  --chart-4: var(--vast-blue);
+  --chart-5: var(--vast-cyan);
+  --radius: 0.5rem;
+  --sidebar: var(--vast-bg-card);
+  --sidebar-foreground: var(--vast-text-primary);
+  --sidebar-primary: var(--vast-primary);
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: var(--vast-primary-light);
+  --sidebar-accent-foreground: var(--vast-primary);
+  --sidebar-border: var(--vast-border);
+  --sidebar-ring: var(--vast-primary);
+}
+
+@theme inline {
+  --font-sans: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Inter', sans-serif;
+  --font-mono: 'Inter', 'Roboto Mono', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* VAST Status Badge Colors */
+.badge-presale {
+  @apply bg-[#EAF4FF] text-[#2F80ED];
+}
+.badge-checking {
+  @apply bg-[#F1EDFF] text-[#6F4FF2];
+}
+.badge-waiting-order {
+  @apply bg-[#FFF7E6] text-[#FAAD14];
+}
+.badge-waiting-filing {
+  @apply bg-[#E6F8FB] text-[#00A8C8];
+}
+.badge-filed {
+  @apply bg-[#E8F8F5] text-[#52C41A];
+}
+.badge-not-filed {
+  @apply bg-[#F5F5F5] text-[#9CA3AF];
+}
+.badge-supplement {
+  @apply bg-[#FFF1F0] text-[#F5222D];
+}
