@@ -4,6 +4,7 @@
  * 支持连接池复用、SQL 参数化查询
  */
 
+import 'dotenv/config'
 import { Pool, PoolClient, QueryResult } from 'pg'
 
 // 从环境变量读取数据库连接字符串

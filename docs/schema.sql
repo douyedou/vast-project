@@ -4,9 +4,11 @@
 -- 执行方式：psql -U vast_user -d vast_db -f docs/schema.sql
 -- ============================================================
 
--- 启用扩展
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS vector;
+-- ============================================================
+-- 前置要求（需用超级用户 postgres 执行）：
+--   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+--   CREATE EXTENSION IF NOT EXISTS vector;
+-- ============================================================
 
 -- ============================================================
 -- 1. 用户与权限系统（成员 B 负责）
@@ -331,24 +333,26 @@ INSERT INTO knowledge_base (field, title, content, source, source_type) VALUES
      '专利 CN202310000001', 'patent');
 
 -- ============================================================
+-- ============================================================
 -- 触发器：自动更新 updated_at
+-- 注意：以下需在 superuser 下执行，或确保 vast_user 有创建函数权限
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $func$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+    NEW.updated_at = NOW()
+    RETURN NEW
+END
+$func$ language plpgsql
 
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 CREATE TRIGGER update_cases_updated_at BEFORE UPDATE ON cases
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 CREATE TRIGGER update_disclosure_docs_updated_at BEFORE UPDATE ON disclosure_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 CREATE TRIGGER update_patent_docs_updated_at BEFORE UPDATE ON patent_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
 CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
