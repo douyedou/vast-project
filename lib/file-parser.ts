@@ -7,9 +7,6 @@
  * const result = await parseFile(buffer, 'application/pdf')
  */
 
-import pdfParse from 'pdf-parse'
-import mammoth from 'mammoth'
-
 export interface ParseResult {
   text: string           // 提取的纯文本
   pages?: number         // PDF 页数（仅 PDF）
@@ -75,6 +72,9 @@ export async function parseFile(
  */
 async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   try {
+    // 动态导入，避免 ESM 兼容问题
+    const pdfModule = await import('pdf-parse')
+    const pdfParse = (pdfModule as any).default || pdfModule
     const data = await pdfParse(buffer)
     return {
       text: cleanText(data.text),
@@ -91,7 +91,9 @@ async function parsePDF(buffer: Buffer): Promise<ParseResult> {
  */
 async function parseWord(buffer: Buffer): Promise<ParseResult> {
   try {
-    const result = await mammoth.extractRawText({ buffer })
+    const mammothModule = await import('mammoth')
+    const extractRawText = (mammothModule as any).default?.extractRawText || (mammothModule as any).extractRawText
+    const result = await extractRawText({ buffer })
     return {
       text: cleanText(result.value),
       paragraphs: countParagraphs(result.value),

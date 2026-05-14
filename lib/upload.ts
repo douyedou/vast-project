@@ -1,9 +1,9 @@
 /**
  * 文件上传中间件
- * 基于 multer，统一封装文件上传逻辑
+ * 基于 busboy，兼容 Next.js App Router
  * 
  * 使用方式（在 API Route 中）：
- * import { upload, handleUpload } from '@/lib/upload'
+ * import { handleUpload } from '@/lib/upload'
  * 
  * export async function POST(request: NextRequest) {
  *   const result = await handleUpload(request, 'cases/123')
@@ -11,10 +11,10 @@
  * }
  */
 
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { writeFile } from 'fs/promises'
 import { v4 as uuidv4 } from 'uuid'
+import Busboy from 'busboy'
 
 // 上传文件存储根目录
 const UPLOAD_DIR = join(process.cwd(), 'public', 'uploads')
@@ -53,8 +53,8 @@ const DEFAULT_OPTIONS: UploadOptions = {
 }
 
 /**
- * 处理单文件上传
- * @param request NextRequest
+ * 处理文件上传（使用 busboy 解析）
+ * @param request Request
  * @param options 上传选项
  * @returns 上传结果
  */
@@ -64,124 +64,124 @@ export async function handleUpload(
 ): Promise<UploadResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options }
   const subDir = opts.subDir || ''
-  
-  // 1. 解析 multipart/form-data
-  const formData = await request.formData()
-  const file = formData.get('file') as File | null
 
-  if (!file) {
-    throw new Error('没有上传文件')
-  }
+  return new Promise((resolve, reject) => {
+    const headers: Record<string, string> = {}
+    request.headers.forEach((value, key) => {
+      headers[key] = value
+    })
 
-  // 2. 文件类型检查
-  if (opts.allowedTypes && opts.allowedTypes.length > 0) {
-    const isAllowed = opts.allowedTypes.some(type => {
-      if (type.endsWith('/*')) {
-        return file.type.startsWith(type.replace('/*', '/'))
+    const busboy = Busboy({ headers })
+    
+    let uploadedFile: UploadResult | null = null
+    let hasFile = false
+
+    busboy.on('file', (fieldname, file, info) => {
+      hasFile = true
+      const { filename, mimeType } = info
+
+      // 1. 文件类型检查
+      if (opts.allowedTypes && opts.allowedTypes.length > 0) {
+        const isAllowed = opts.allowedTypes.some(type => {
+          if (type.endsWith('/*')) {
+            return mimeType.startsWith(type.replace('/*', '/'))
+          }
+          return mimeType === type
+        })
+        
+        if (!isAllowed) {
+          file.resume() // 丢弃文件内容
+          reject(new Error(`不支持的文件类型: ${mimeType}`))
+          return
+        }
       }
-      return file.type === type
+
+      // 2. 生成文件名和存储路径
+      const fileId = uuidv4()
+      const ext = filename.split('.').pop() || ''
+      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+      const safeFilename = `${fileId}${safeExt ? '.' + safeExt : ''}`
+      
+      const targetDir = join(UPLOAD_DIR, subDir)
+      if (!existsSync(targetDir)) {
+        mkdirSync(targetDir, { recursive: true })
+      }
+      
+      const filePath = join(targetDir, safeFilename)
+
+      // 3. 写入文件
+      const chunks: Buffer[] = []
+      let fileSize = 0
+
+      file.on('data', (chunk: Buffer) => {
+        fileSize += chunk.length
+        
+        // 文件大小检查
+        if (opts.maxSize && fileSize > opts.maxSize) {
+          file.resume() // 停止接收
+          reject(new Error(`文件过大: ${Math.round(fileSize / 1024 / 1024)}MB，最大允许 ${Math.round(opts.maxSize! / 1024 / 1024)}MB`))
+          return
+        }
+        
+        chunks.push(chunk)
+      })
+
+      file.on('end', () => {
+        const buffer = Buffer.concat(chunks)
+        writeFileSync(filePath, buffer)
+
+        const relativeUrl = `/uploads/${subDir ? subDir.replace(/\\/g, '/') + '/' : ''}${safeFilename}`
+
+        uploadedFile = {
+          fileId,
+          originalName: filename,
+          filename: safeFilename,
+          url: relativeUrl,
+          mimeType,
+          size: fileSize,
+          path: filePath,
+        }
+      })
+
+      file.on('error', (err: Error) => {
+        reject(new Error(`文件读取失败: ${err.message}`))
+      })
     })
-    
-    if (!isAllowed) {
-      throw new Error(`不支持的文件类型: ${file.type}。允许: ${opts.allowedTypes.join(', ')}`)
-    }
-  }
 
-  // 3. 文件大小检查
-  if (opts.maxSize && file.size > opts.maxSize) {
-    const maxMB = Math.round(opts.maxSize / 1024 / 1024)
-    throw new Error(`文件过大: ${Math.round(file.size / 1024 / 1024)}MB，最大允许 ${maxMB}MB`)
-  }
-
-  // 4. 生成文件名和存储路径
-  const fileId = uuidv4()
-  const originalName = file.name
-  const ext = originalName.split('.').pop() || ''
-  const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
-  const filename = `${fileId}${safeExt ? '.' + safeExt : ''}`
-  
-  const targetDir = join(UPLOAD_DIR, subDir)
-  if (!existsSync(targetDir)) {
-    mkdirSync(targetDir, { recursive: true })
-  }
-  
-  const filePath = join(targetDir, filename)
-
-  // 5. 写入文件
-  const bytes = await file.arrayBuffer()
-  await writeFile(filePath, Buffer.from(bytes))
-
-  // 6. 返回结果
-  const relativeUrl = `/uploads/${subDir ? subDir + '/' : ''}${filename}`
-
-  return {
-    fileId,
-    originalName,
-    filename,
-    url: relativeUrl,
-    mimeType: file.type,
-    size: file.size,
-    path: filePath,
-  }
-}
-
-/**
- * 处理多文件上传
- * @param request NextRequest
- * @param options 上传选项
- * @returns 上传结果数组
- */
-export async function handleMultipleUploads(
-  request: Request,
-  options: UploadOptions = {}
-): Promise<UploadResult[]> {
-  const formData = await request.formData()
-  const files = formData.getAll('files') as File[]
-
-  if (files.length === 0) {
-    throw new Error('没有上传文件')
-  }
-
-  const results: UploadResult[] = []
-  for (const file of files) {
-    // 构造一个模拟的 Request 对象
-    const mockFormData = new FormData()
-    mockFormData.append('file', file)
-    const mockRequest = new Request(request.url, {
-      method: 'POST',
-      body: mockFormData,
+    busboy.on('finish', () => {
+      if (!hasFile) {
+        reject(new Error('没有上传文件'))
+        return
+      }
+      if (!uploadedFile) {
+        reject(new Error('文件处理失败'))
+        return
+      }
+      resolve(uploadedFile)
     })
-    
-    const result = await handleUpload(mockRequest, options)
-    results.push(result)
-  }
 
-  return results
-}
+    busboy.on('error', (err: Error) => {
+      reject(new Error(`解析表单失败: ${err.message}`))
+    })
 
-/**
- * 根据 fileId 获取文件路径
- * @param fileId 文件ID
- * @param subDir 子目录
- * @returns 文件绝对路径，不存在返回 null
- */
-export function getFilePath(fileId: string, subDir?: string): string | null {
-  const searchDir = subDir ? join(UPLOAD_DIR, subDir) : UPLOAD_DIR
-  
-  // 简单查找：fileId 开头的文件
-  // 实际项目中应该维护一个文件索引表
-  try {
-    const { readdirSync } = require('fs')
-    const files = readdirSync(searchDir)
-    const matched = files.find((f: string) => f.startsWith(fileId))
-    if (matched) {
-      return join(searchDir, matched)
+    // 读取请求体并传入 busboy
+    if (request.body) {
+      const reader = request.body.getReader()
+      const pump = (): Promise<void> => {
+        return reader.read().then(({ done, value }) => {
+          if (done) {
+            busboy.end()
+            return
+          }
+          busboy.write(Buffer.from(value))
+          return pump()
+        })
+      }
+      pump().catch(err => reject(new Error(`读取请求体失败: ${err.message}`)))
+    } else {
+      reject(new Error('请求体为空'))
     }
-  } catch {
-    return null
-  }
-  
-  return null
+  })
 }
 
 /**

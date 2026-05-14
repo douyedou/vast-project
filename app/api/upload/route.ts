@@ -12,22 +12,25 @@ import { parseFile } from '@/lib/file-parser'
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. 上传文件
+    // 1. 上传文件（使用 busboy 解析）
     const uploadResult = await handleUpload(request, {
       subDir: 'test',
     })
 
     // 2. 读取文件内容（如果是文本类文件）
     let parsedText = ''
-    const textTypes = ['application/pdf', 'application/msword', 
+    const textTypes = [
+      'application/pdf',
+      'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain']
+      'text/plain',
+    ]
     
     if (textTypes.includes(uploadResult.mimeType)) {
       const { readFileSync } = require('fs')
       const buffer = readFileSync(uploadResult.path)
       const parseResult = await parseFile(buffer, uploadResult.mimeType)
-      parsedText = parseResult.text.substring(0, 500) + '...'
+      parsedText = parseResult.text.substring(0, 500) + (parseResult.text.length > 500 ? '...' : '')
     }
 
     return NextResponse.json(success({
