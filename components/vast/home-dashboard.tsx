@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -211,8 +212,21 @@ const recentActivities = [
 ]
 
 export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const token = localStorage.getItem('vast_token')
+    fetch('/api/dashboard/stats', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.code === 200) setStats(data.data)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
   const currentUser = {
-    name: "张明",
+    name: "用户",
     role: "专利工程师",
     avatar: "ZM",
   }
@@ -272,9 +286,9 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {moduleStats.map((module) => {
           const Icon = module.icon
-          const completionRate = Math.round(
-            (module.stats.completed / module.stats.total) * 100
-          )
+          const apiTotal = stats?.moduleStats?.[module.id]?.total ?? module.stats.total
+          const apiPending = stats?.moduleStats?.[module.id]?.pending ?? module.stats.pending
+          const completionRate = apiTotal > 0 ? Math.round(((apiTotal - apiPending) / apiTotal) * 100) : 0
           return (
             <Card
               key={module.id}
@@ -302,10 +316,10 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                 <div className="text-xs text-[#6B7280] mb-1">{module.name}</div>
                 <div className="flex items-end justify-between">
                   <div className="text-2xl font-bold text-[#111827]">
-                    {module.stats.total}
+                    {loading ? '-' : apiTotal}
                   </div>
                   <div className="text-xs text-[#9CA3AF]">
-                    待处理 {module.stats.pending}
+                    待处理 {loading ? '-' : apiPending}
                   </div>
                 </div>
                 <Progress value={completionRate} className="h-1.5 mt-3" />
@@ -327,15 +341,15 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                   待办事项
                 </CardTitle>
                 <Badge variant="outline" className="text-[#EF4444] border-[#EF4444]/30">
-                  {todoItems.reduce((acc, item) => acc + item.count, 0)} 项待处理
+                  {stats?.todoItems ? stats.todoItems.reduce((acc: number, item: any) => acc + item.count, 0) : todoItems.reduce((acc, item) => acc + item.count, 0)} 项待处理
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {todoItems.map((item) => (
+                {(stats?.todoItems ?? todoItems).map((item: any, index: number) => (
                   <div
-                    key={item.id}
+                    key={item.id ?? index}
                     className="flex items-center justify-between p-3 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] cursor-pointer transition-colors"
                     onClick={() => onNavigate(item.page)}
                   >
@@ -393,7 +407,7 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
             <CardContent>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
+                  <LineChart data={stats?.trendData ?? trendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                     <XAxis
                       dataKey="month"
@@ -411,46 +425,24 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                         borderRadius: "8px",
                       }}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="m05"
-                      name="M05 交底书来源"
-                      stroke="#3B82F6"
-                      strokeWidth={2}
-                      dot={{ fill: "#3B82F6", r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="m06"
-                      name="M06 交底书引擎"
-                      stroke="#8B5CF6"
-                      strokeWidth={2}
-                      dot={{ fill: "#8B5CF6", r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="m07"
-                      name="M07 专利创作"
-                      stroke="#10B981"
-                      strokeWidth={2}
-                      dot={{ fill: "#10B981", r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="m08"
-                      name="M08 质量审核"
-                      stroke="#F59E0B"
-                      strokeWidth={2}
-                      dot={{ fill: "#F59E0B", r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="m09"
-                      name="M09 案件管理"
-                      stroke="#EF4444"
-                      strokeWidth={2}
-                      dot={{ fill: "#EF4444", r: 4 }}
-                    />
+                    {stats?.trendData ? (
+                      <Line
+                        type="monotone"
+                        dataKey="count"
+                        name="案件总数"
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        dot={{ fill: "#3B82F6", r: 4 }}
+                      />
+                    ) : (
+                      <>
+                        <Line type="monotone" dataKey="m05" name="M05 交底书来源" stroke="#3B82F6" strokeWidth={2} dot={{ fill: "#3B82F6", r: 4 }} />
+                        <Line type="monotone" dataKey="m06" name="M06 交底书引擎" stroke="#8B5CF6" strokeWidth={2} dot={{ fill: "#8B5CF6", r: 4 }} />
+                        <Line type="monotone" dataKey="m07" name="M07 专利创作" stroke="#10B981" strokeWidth={2} dot={{ fill: "#10B981", r: 4 }} />
+                        <Line type="monotone" dataKey="m08" name="M08 质量审核" stroke="#F59E0B" strokeWidth={2} dot={{ fill: "#F59E0B", r: 4 }} />
+                        <Line type="monotone" dataKey="m09" name="M09 案件管理" stroke="#EF4444" strokeWidth={2} dot={{ fill: "#EF4444", r: 4 }} />
+                      </>
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -484,7 +476,7 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={statusDistribution}
+                      data={stats?.statusDistribution ?? statusDistribution}
                       cx="50%"
                       cy="50%"
                       innerRadius={50}
@@ -492,7 +484,7 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                       paddingAngle={4}
                       dataKey="value"
                     >
-                      {statusDistribution.map((entry, index) => (
+                      {(stats?.statusDistribution ?? statusDistribution).map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -501,7 +493,7 @@ export function HomeDashboard({ onNavigate }: HomeDashboardProps) {
                 </ResponsiveContainer>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-4">
-                {statusDistribution.map((item) => (
+                {(stats?.statusDistribution ?? statusDistribution).map((item: any) => (
                   <div key={item.name} className="flex items-center gap-2">
                     <div
                       className="w-3 h-3 rounded-full"
