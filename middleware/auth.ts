@@ -32,9 +32,11 @@ export interface AuthUser {
  */
 export async function requireAuth(request: NextRequest): Promise<AuthUser | null> {
   const token = extractToken(request)
+  console.log('[AUTH] token extracted:', token ? 'yes' : 'no')
   if (!token) return null
 
   const payload = verify(token)
+  console.log('[AUTH] payload:', payload ? 'valid' : 'invalid')
   if (!payload) return null
 
   // 从数据库查询最新用户信息（防止用户被删除/禁用后 Token 仍然有效）
@@ -42,6 +44,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthUser | null
     'SELECT id, username, name, role, email, status FROM users WHERE id = $1',
     [payload.userId]
   )
+  console.log('[AUTH] db user found:', result.rows.length > 0)
 
   if (result.rows.length === 0) return null
   

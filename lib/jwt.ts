@@ -1,18 +1,35 @@
 /**
- * JWT 工具函数
- * 用于签发和验证 Token
+ * JWT 工具函数（自实现 HS256）
  * 
- * 使用方式：
- * 1. 登录成功后签发 Token：const token = sign({ userId, role })
- * 2. 请求时验证 Token：const payload = verify(token)
+ * 注意：使用自实现而非 jsonwebtoken 库，以避免 Next.js Turbopack
+ * 的 process.env 内联缓存问题（不同 bundle 可能内联不同的值）。
  */
 
-import jwt from 'jsonwebtoken'
+import { createHmac } from 'crypto'
 
-const SECRET = process.env.JWT_SECRET
+function getSecret(): string {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET 未设置，请在 .env 文件中配置')
+  }
+  return secret
+}
 
-if (!SECRET) {
-  throw new Error('JWT_SECRET 未设置，请在 .env 文件中配置')
+function base64UrlEncode(str: string): string {
+  return Buffer.from(str).toString('base64url')
+}
+
+function base64UrlDecode(str: string): string {
+  return Buffer.from(str, 'base64url').toString()
+}
+
+function parseDuration(expiresIn: string): number {
+  const match = expiresIn.match(/^(\d+)([dhm])$/)
+  if (!match) return 7 * 86400
+  const value = parseInt(match[1])
+  const unit = match[2]
+  const multipliers: Record<string, number> = { d: 86400, h: 3600, m: 60 }
+  return value * (multipliers[unit] || 86400)
 }
 
 export interface JwtPayload {
@@ -25,52 +42,46 @@ export interface JwtPayload {
 
 /**
  * 签发 JWT Token
- * @param payload 用户信息（不要放敏感信息如密码）
- * @param expiresIn 过期时间（默认 7 天）
- * @returns Token 字符串
- * 
- * 示例：
- * const token = sign({ userId: user.id, username: user.username, role: user.role })
  */
 export function sign(
   payload: Omit<JwtPayload, 'iat' | 'exp'>,
   expiresIn: string = '7d'
 ): string {
-  return jwt.sign(payload, SECRET!, { expiresIn })
+  const secret = getSecret()
+  const header = base64UrlEncode(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const now = Math.floor(Date.now() / 1000)
+  const body = base64UrlEncode(JSON.stringify({ ...payload, iat: now, exp: now + parseDuration(expiresIn) }))
+  const signature = createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url')
+  return `${header}.${body}.${signature}`
 }
 
 /**
  * 验证 JWT Token
- * @param token 从请求头中提取的 token
- * @returns 解析后的用户信息，失败返回 null
- * 
- * 示例：
- * const token = request.headers.get('authorization')?.replace('Bearer ', '')
- * const payload = verify(token)
- * if (!payload) return error('Token 无效或已过期', 401)
  */
 export function verify(token: string): JwtPayload | null {
   try {
-    return jwt.verify(token, SECRET!) as JwtPayload
-  } catch (err) {
+    const secret = getSecret()
+    const [header, body, signature] = token.split('.')
+    if (!header || !body || !signature) return null
+
+    const expectedSignature = createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url')
+    if (signature !== expectedSignature) return null
+
+    const payload = JSON.parse(base64UrlDecode(body)) as JwtPayload
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) return null
+
+    return payload
+  } catch {
     return null
   }
 }
 
 /**
  * 从请求头中提取 Token
- * @param request NextRequest 对象
- * @returns Token 字符串或 null
- * 
- * 支持两种格式：
- * Authorization: Bearer <token>
- * Authorization: <token>
  */
 export function extractToken(request: Request): string | null {
   const authHeader = request.headers.get('authorization')
   if (!authHeader) return null
-  
-  // 支持 "Bearer xxx" 和直接 "xxx" 两种格式
   const parts = authHeader.split(' ')
   return parts.length === 2 ? parts[1] : authHeader
 }

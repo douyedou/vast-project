@@ -313,12 +313,12 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = '系统管理员';
 
--- 插入测试用户（密码由 B 后续用 bcrypt 生成，这里先用占位符）
+-- 插入测试用户（密码统一为 123456 的 bcrypt hash）
 INSERT INTO users (username, password_hash, name, email, role) VALUES
-    ('admin', '$2b$10$placeholder', '系统管理员', 'admin@vast.local', 'admin'),
-    ('engineer1', '$2b$10$placeholder', '张工程师', 'eng1@vast.local', 'engineer'),
-    ('reviewer1', '$2b$10$placeholder', '李审核员', 'rev1@vast.local', 'reviewer'),
-    ('applicant1', '$2b$10$placeholder', '王交案人', 'app1@vast.local', 'applicant');
+    ('admin', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '系统管理员', 'admin@vast.local', 'admin'),
+    ('engineer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '张工程师', 'eng1@vast.local', 'engineer'),
+    ('reviewer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '李审核员', 'rev1@vast.local', 'reviewer'),
+    ('applicant1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '王交案人', 'app1@vast.local', 'applicant');
 
 -- 插入术语库示例数据
 INSERT INTO terminology (field, term, definition, synonyms, usage_example) VALUES

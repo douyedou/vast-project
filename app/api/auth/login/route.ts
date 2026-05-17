@@ -4,15 +4,13 @@
  * 
  * 请求体：{ username: string, password: string }
  * 响应：{ code, data: { token, user }, message }
- * 
- * 注意：密码校验逻辑当前为 Mock（明文比对），
- * 成员 B 后续需替换为 bcrypt.compare()
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { query } from '@/lib/db'
 import { sign } from '@/lib/jwt'
+import bcrypt from 'bcryptjs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,11 +39,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error('账户已被禁用，请联系管理员'))
     }
 
-    // 4. 密码校验（TODO: B 成员需替换为 bcrypt.compare()）
-    // 当前为 Mock：schema.sql 中测试用户的密码是 '$2b$10$placeholder'
-    // 实际使用时：const isValid = await bcrypt.compare(password, user.password_hash)
-    const isValid = password === '123456' || user.password_hash === '$2b$10$placeholder'
-    
+    // 4. 密码校验
+    const isValid = await bcrypt.compare(password, user.password_hash)
     if (!isValid) {
       return NextResponse.json(error('用户名或密码错误'))
     }
