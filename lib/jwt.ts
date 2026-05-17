@@ -1,18 +1,27 @@
 /**
  * JWT 工具函数（自实现 HS256）
  * 
- * 注意：使用自实现而非 jsonwebtoken 库，以避免 Next.js Turbopack
- * 的 process.env 内联缓存问题（不同 bundle 可能内联不同的值）。
+ * 注意：开发环境使用硬编码密钥，避免 Next.js Turbopack 的 process.env
+ * 内联缓存问题（不同编译产物可能内联不同值）。
+ * 生产环境通过构建时的环境变量注入真实密钥。
  */
 
 import { createHmac } from 'crypto'
 
+// 开发环境密钥（仅本地开发使用，生产环境必须覆盖）
+const DEV_SECRET = 'vast-dev-jwt-secret-key-change-in-production-2024'
+
 function getSecret(): string {
-  const secret = process.env.JWT_SECRET
-  if (!secret) {
-    throw new Error('JWT_SECRET 未设置，请在 .env 文件中配置')
+  // 生产环境：从环境变量读取（构建时注入）
+  if (process.env.NODE_ENV === 'production') {
+    const secret = process.env.JWT_SECRET
+    if (!secret) {
+      throw new Error('JWT_SECRET 未设置，请在生产环境配置')
+    }
+    return secret
   }
-  return secret
+  // 开发环境：使用硬编码密钥（确保所有模块实例一致）
+  return DEV_SECRET
 }
 
 function base64UrlEncode(str: string): string {
