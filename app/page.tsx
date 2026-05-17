@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppHeader } from "@/components/vast/app-header"
 import { AppSidebar } from "@/components/vast/app-sidebar"
 // 登录和首页
@@ -141,15 +141,38 @@ type Page =
   | "sys-logs"
 
 export default function Home() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true)
-  const [currentPage, setCurrentPage] = useState<Page>("home")
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [currentPage, setCurrentPage] = useState<Page>("login")
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
-  const handleLogin = () => {
+  useEffect(() => {
+    const token = localStorage.getItem('vast_token')
+    if (token) {
+      // 验证 token 有效性
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => {
+          if (data.code === 200) {
+            setCurrentUser(data.data)
+            setIsLoggedIn(true)
+            setCurrentPage("home")
+          } else {
+            localStorage.removeItem('vast_token')
+          }
+        })
+        .catch(() => localStorage.removeItem('vast_token'))
+    }
+  }, [])
+
+  const handleLogin = (user: any) => {
+    setCurrentUser(user)
     setIsLoggedIn(true)
     setCurrentPage("home")
   }
 
   const handleLogout = () => {
+    localStorage.removeItem('vast_token')
+    setCurrentUser(null)
     setIsLoggedIn(false)
     setCurrentPage("login")
   }
@@ -431,9 +454,14 @@ export default function Home() {
     return <LoginPage onLogin={handleLogin} />
   }
 
+  // 已登录但未获取到用户信息，显示 loading
+  if (!currentUser) {
+    return <div className="min-h-screen flex items-center justify-center">加载中...</div>
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
-      <AppHeader onLogout={handleLogout} />
+      <AppHeader user={currentUser} onLogout={handleLogout} />
       <div className="flex h-[calc(100vh-56px)]">
         <AppSidebar
           activeItem={getSidebarActiveItem()}

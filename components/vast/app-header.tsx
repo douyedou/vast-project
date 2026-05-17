@@ -1,6 +1,7 @@
 "use client"
 
 import { Bell, Search, User, ChevronDown } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -12,10 +13,28 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 interface AppHeaderProps {
+  user?: any
   onLogout?: () => void
 }
 
-export function AppHeader({ onLogout }: AppHeaderProps) {
+export function AppHeader({ user, onLogout }: AppHeaderProps) {
+  const [userInfo, setUserInfo] = useState<any>(user)
+
+  useEffect(() => {
+    if (!user) {
+      const token = localStorage.getItem('vast_token')
+      if (token) {
+        fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(data => {
+            if (data.code === 200) setUserInfo(data.data)
+          })
+      }
+    }
+  }, [user])
+
+  const displayName = userInfo?.name || userInfo?.username || '用户'
+
   return (
     <header className="h-14 border-b border-border bg-[#123A9C] text-white flex items-center justify-between px-4">
       <div className="flex items-center gap-6">
@@ -59,7 +78,7 @@ export function AppHeader({ onLogout }: AppHeaderProps) {
               <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center">
                 <User className="h-4 w-4" />
               </div>
-              <span className="text-sm">张三</span>
+              <span className="text-sm">{displayName}</span>
               <ChevronDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

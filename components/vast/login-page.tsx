@@ -17,7 +17,7 @@ import {
 } from "lucide-react"
 
 interface LoginPageProps {
-  onLogin: () => void
+  onLogin: (user: any) => void
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
@@ -30,10 +30,24 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // 模拟登录
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    onLogin()
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        localStorage.setItem('vast_token', data.data.token)
+        onLogin(data.data.user)
+      } else {
+        alert(data.message || '登录失败')
+      }
+    } catch (err) {
+      alert('网络错误，请稍后重试')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const features = [
