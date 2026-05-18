@@ -314,11 +314,12 @@ SELECT r.id, p.id FROM roles r, permissions p
 WHERE r.name = '系统管理员';
 
 -- 插入测试用户（密码统一为 123456 的 bcrypt hash）
-INSERT INTO users (username, password_hash, name, email, role) VALUES
-    ('admin', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '系统管理员', 'admin@vast.local', 'admin'),
-    ('engineer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '张工程师', 'eng1@vast.local', 'engineer'),
-    ('reviewer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '李审核员', 'rev1@vast.local', 'reviewer'),
-    ('applicant1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '王交案人', 'app1@vast.local', 'applicant');
+-- UUID 固定，与 seed-data.sql 中的外键引用保持一致
+INSERT INTO users (id, username, password_hash, name, email, role) VALUES
+    ('53472e7d-b8b1-4ece-ac6a-5b33da933248', 'admin', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '系统管理员', 'admin@vast.local', 'admin'),
+    ('eed9a9d8-6fa1-41c6-8e18-35b42062f087', 'engineer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '张工程师', 'eng1@vast.local', 'engineer'),
+    ('00884c9f-ad3c-419a-ad1e-7b7642f9ab5c', 'reviewer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '李审核员', 'rev1@vast.local', 'reviewer'),
+    ('f036e1bb-d055-424e-92ec-0b7bf973fcef', 'applicant1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '王交案人', 'app1@vast.local', 'applicant');
 
 -- 插入术语库示例数据
 INSERT INTO terminology (field, term, definition, synonyms, usage_example) VALUES

@@ -7,7 +7,7 @@
 
 import { Pool } from 'pg'
 
-const OLLAMA_URL = 'http://localhost:11434/api/embeddings'
+const OLLAMA_URL = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/api/embeddings'
 const EMBED_MODEL = 'mxbai-embed-large:latest'
 
 async function getEmbedding(text: string): Promise<number[]> {

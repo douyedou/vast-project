@@ -11,7 +11,12 @@
     "db:seed": "psql -d vast_db -f docs/seed-data.sql",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:embed": "tsx scripts/embed-knowledge-base.ts",
-    "db:full-init": "npm run db:init && npm run db:seed && npm run db:embed"
+    "db:full-init": "npm run db:init && npm run db:seed && npm run db:embed",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose up -d --build",
+    "docker:reset": "docker-compose down -v && docker-compose up -d"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

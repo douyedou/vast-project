@@ -1,0 +1,156 @@
+# ============================================================
+# VAST 8.0 开发环境 - Docker Compose 全栈编排
+#
+# 一键启动整个开发环境：
+#   docker-compose up -d
+#
+# 首次启动后，Ollama 会自动拉取模型（约 5-10 分钟，看网速）。
+# 可通过以下命令查看进度：
+#   docker-compose logs -f ollama
+#
+# 服务清单：
+#   - PostgreSQL 16 + pgvector  (端口 5432)
+#   - OnlyOffice Document Server (端口 8080)
+#   - Ollama (端口 11434)
+#   - AI Service (FastAPI)      (端口 8000)
+#   - Next.js (开发模式)         (端口 3000)
+# ============================================================
+
+version: "3.9"
+
+services:
+  # ----------------------------------------------------------
+  # 1. PostgreSQL 16 + pgvector
+  # ----------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vast-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vast_user
+      POSTGRES_PASSWORD: vast_password
+      POSTGRES_DB: vast_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./docs/seed-data.sql:/docker-entrypoint-initdb.d/02-seed-data.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vast_user -d vast_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # 2. OnlyOffice Document Server
+  # ----------------------------------------------------------
+  onlyoffice:
+    image: onlyoffice/documentserver:8.1
+    container_name: vast-onlyoffice
+    restart: unless-stopped
+    environment:
+      - JWT_ENABLED=false
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_logs:/var/log/onlyoffice
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ----------------------------------------------------------
+  # 3. Ollama (LLM + Embedding)
+  # ----------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vast-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    volumes:
+      - ollama_models:/root/.ollama
+      - ./scripts/ollama-entrypoint.sh:/entrypoint.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # ----------------------------------------------------------
+  # 4. AI 微服务 (FastAPI)
+  # ----------------------------------------------------------
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile.dev
+    container_name: vast-ai-service
+    restart: unless-stopped
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai-service:/app:delegated
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ----------------------------------------------------------
+  # 5. Next.js (开发模式 + 热重载)
+  # ----------------------------------------------------------
+  nextjs:
+    image: node:20-alpine
+    container_name: vast-nextjs
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://vast_user:vast_password@postgres:5432/vast_db
+      - JWT_SECRET=DEV_SECRET
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:3b
+      - AI_SERVICE_URL=http://ai-service:8000
+      - ONLYOFFICE_SERVER=http://onlyoffice:80
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app:delegated
+      - nextjs_node_modules:/app/node_modules
+      - nextjs_next:/app/.next
+    command: >
+      sh -c "
+        npm install -g pnpm &&
+        pnpm install --frozen-lockfile &&
+        pnpm dev
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+# ----------------------------------------------------------
+# 数据卷持久化
+# ----------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  ollama_models:
+    driver: local
+  onlyoffice_data:
+    driver: local
+  onlyoffice_logs:
+    driver: local
+  nextjs_node_modules:
+    driver: local
+  nextjs_next:
+    driver: local
