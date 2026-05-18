@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,40 +25,69 @@ interface ReviewTaskListProps {
   onNavigate?: (page: string) => void
 }
 
+interface CaseItem {
+  id: string
+  case_id: string
+  title: string
+  type: string
+  status: string
+  reviewer_name: string | null
+  created_at: string
+}
+
+const typeMap: Record<string, string> = {
+  invention: '发明',
+  utility: '实用新型',
+  design: '外观设计',
+}
+
+const statusLabelMap: Record<string, string> = {
+  draft: '草稿',
+  assigning: '待分配',
+  searching: '检索中',
+  confirming: '待确认',
+  filing: '立案中',
+  disclosure_pending: '待交底',
+  writing: '撰写中',
+  reviewing: '审核中',
+  completed: '已完成',
+  rejected: '已退回',
+}
+
+const statusStyleMap: Record<string, string> = {
+  reviewing: 'bg-[#EAF4FF] text-[#2F80ED]',
+  completed: 'bg-[#F0FDF4] text-[#16A34A]',
+  rejected: 'bg-[#FEF2F2] text-[#DC2626]',
+  writing: 'bg-[#F5F7FA] text-[#374151]',
+  default: 'bg-[#F5F7FA] text-[#374151]',
+}
+
 export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
+  const [tasks, setTasks] = useState<CaseItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
 
-  const tasks = [
-    { id: 'R001', caseNo: 'C2024001', title: '智能人体识别装置', type: '发明专利', method: '电子申请', reviewType: '初审', reviewStatus: '待审核', blockingCount: 3, warningCount: 1, similarity: '28%', reviewer: '李四', submitTime: '2024-05-05' },
-    { id: 'R002', caseNo: 'C2024002', title: '机器学习优化方法', type: '发明专利', method: '电子申请', reviewType: '复审', reviewStatus: '审核中', blockingCount: 0, warningCount: 2, similarity: '32%', reviewer: '李四', submitTime: '2024-05-04' },
-    { id: 'R003', caseNo: 'C2024003', title: '数据加密传输协议', type: '发明专利', method: '纸质申请', reviewType: '初审', reviewStatus: '已退回', blockingCount: 5, warningCount: 3, similarity: '45%', reviewer: '王工', submitTime: '2024-05-03' },
-    { id: 'R004', caseNo: 'C2024004', title: '图像处理芯片', type: '实用新型', method: '电子申请', reviewType: '初审', reviewStatus: '已通过', blockingCount: 0, warningCount: 0, similarity: '15%', reviewer: '李四', submitTime: '2024-05-02' },
-    { id: 'R005', caseNo: 'C2024005', title: '云计算架构优化', type: '发明专利', method: '电子申请', reviewType: '初审', reviewStatus: '待审核', blockingCount: 2, warningCount: 4, similarity: '38%', reviewer: '未分配', submitTime: '2024-05-01' },
-  ]
-
-  const getStatusStyle = (s: string) => {
-    switch (s) {
-      case '待审核': return 'bg-[#F5F7FA] text-[#374151]'
-      case '审核中': return 'bg-[#EAF4FF] text-[#2F80ED]'
-      case '已退回': return 'bg-[#FEF2F2] text-[#DC2626]'
-      case '已通过': return 'bg-[#F0FDF4] text-[#16A34A]'
-      default: return 'bg-[#F5F7FA] text-[#374151]'
-    }
-  }
-
-  const getSimilarityColor = (similarity: string) => {
-    const value = parseInt(similarity)
-    if (value > 40) return 'text-[#DC2626] font-semibold'
-    if (value > 30) return 'text-[#EA580C] font-semibold'
-    return 'text-[#16A34A] font-semibold'
-  }
+  useEffect(() => {
+    const token = localStorage.getItem('vast_token')
+    fetch('/api/cases?page=1&pageSize=50', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.code === 200) {
+          setTasks(data.data.list || [])
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   const filteredTasks = tasks.filter((task) => {
-    const matchesStatus = status === 'all' || task.reviewStatus === status
+    const matchesStatus = status === 'all' || task.status === status
     const matchesSearch =
-      task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.caseNo.toLowerCase().includes(searchTerm.toLowerCase())
+      !searchTerm ||
+      task.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.case_id?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesStatus && matchesSearch
   })
 
@@ -69,7 +98,6 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
         <p className="text-sm text-[#9CA3AF] mt-1">集中管理全部审核任务</p>
       </div>
 
-      {/* 筛选区 */}
       <Card className="border-[#E5E9F0]">
         <CardContent className="pt-4 pb-4">
           <div className="flex gap-3 flex-wrap">
@@ -82,16 +110,16 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
                 className="pl-9 h-9 border-[#E5E9F0]"
               />
             </div>
-            <Select defaultValue="all" onValueChange={setStatus}>
+            <Select value={status} onValueChange={setStatus}>
               <SelectTrigger className="w-32 h-9 border-[#E5E9F0]">
-                <SelectValue placeholder="审核状态" />
+                <SelectValue placeholder="案件状态" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="待审核">待审核</SelectItem>
-                <SelectItem value="审核中">审核中</SelectItem>
-                <SelectItem value="已退回">已退回</SelectItem>
-                <SelectItem value="已通过">已通过</SelectItem>
+                <SelectItem value="writing">撰写中</SelectItem>
+                <SelectItem value="reviewing">审核中</SelectItem>
+                <SelectItem value="completed">已完成</SelectItem>
+                <SelectItem value="rejected">已退回</SelectItem>
               </SelectContent>
             </Select>
             <Select defaultValue="all">
@@ -100,20 +128,8 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="发明">发明专利</SelectItem>
-                <SelectItem value="实用">实用新型</SelectItem>
-                <SelectItem value="外观">外观设计</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select defaultValue="all">
-              <SelectTrigger className="w-32 h-9 border-[#E5E9F0]">
-                <SelectValue placeholder="风险等级" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="blocking">阻断</SelectItem>
-                <SelectItem value="warning">警告</SelectItem>
-                <SelectItem value="safe">安全</SelectItem>
+                <SelectItem value="invention">发明</SelectItem>
+                <SelectItem value="utility">实用新型</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm" className="h-9 border-[#E5E9F0] text-[#374151]">
@@ -126,82 +142,56 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
         </CardContent>
       </Card>
 
-      {/* 任务表格 */}
       <Card className="border-[#E5E9F0]">
         <CardContent className="pt-0 px-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-[#E5E9F0] bg-[#F9FAFB]">
-                <TableHead className="text-xs text-[#9CA3AF] w-16 pl-4">审核编号</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20">案件编号</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF]">专利名称</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20">专利类型</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20">申请方式</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20">审核状态</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-14 text-center">阻断</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-14 text-center">警告</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20">AI相似性</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-16">审核人</TableHead>
-                <TableHead className="text-xs text-[#9CA3AF] w-20 text-center pr-4">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTasks.map((task) => (
-                <TableRow key={task.id} className="border-[#F3F4F6] hover:bg-[#F9FAFB] cursor-pointer"
-                  onClick={() => onNavigate?.('m08-task-detail')}>
-                  <TableCell className="font-mono text-xs text-[#9CA3AF] pl-4">{task.id}</TableCell>
-                  <TableCell className="font-mono text-xs text-[#9CA3AF]">{task.caseNo}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium text-sm text-[#111827]">{task.title}</p>
-                      <p className="text-xs text-[#9CA3AF]">{task.submitTime}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-[#374151]">{task.type}</TableCell>
-                  <TableCell className="text-sm text-[#374151]">{task.method}</TableCell>
-                  <TableCell>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusStyle(task.reviewStatus)}`}>
-                      {task.reviewStatus}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {task.blockingCount > 0 && (
-                      <span className="text-xs bg-[#FEF2F2] text-[#DC2626] px-1.5 py-0.5 rounded font-semibold">
-                        {task.blockingCount}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {task.warningCount > 0 && (
-                      <span className="text-xs bg-[#FFF7ED] text-[#EA580C] px-1.5 py-0.5 rounded font-semibold">
-                        {task.warningCount}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`text-sm ${getSimilarityColor(task.similarity)}`}>{task.similarity}</span>
-                  </TableCell>
-                  <TableCell className="text-sm text-[#374151]">{task.reviewer}</TableCell>
-                  <TableCell className="text-center pr-4">
-                    <Button variant="ghost" size="sm" className="text-xs text-[#2F80ED] h-7 px-2"
-                      onClick={(e) => { e.stopPropagation(); onNavigate?.('m08-task-detail') }}>
-                      进入审核
-                    </Button>
-                  </TableCell>
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground">加载中...</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-[#E5E9F0] bg-[#F9FAFB]">
+                  <TableHead className="text-xs text-[#9CA3AF] w-20 pl-4">案件编号</TableHead>
+                  <TableHead className="text-xs text-[#9CA3AF]">专利名称</TableHead>
+                  <TableHead className="text-xs text-[#9CA3AF] w-20">专利类型</TableHead>
+                  <TableHead className="text-xs text-[#9CA3AF] w-20">案件状态</TableHead>
+                  <TableHead className="text-xs text-[#9CA3AF] w-16">审核人</TableHead>
+                  <TableHead className="text-xs text-[#9CA3AF] w-20 text-center pr-4">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredTasks.map((task) => (
+                  <TableRow key={task.id} className="border-[#F3F4F6] hover:bg-[#F9FAFB] cursor-pointer"
+                    onClick={() => onNavigate?.('m08-task-detail')}>
+                    <TableCell className="font-mono text-xs text-[#9CA3AF] pl-4">{task.case_id}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-sm text-[#111827]">{task.title}</p>
+                        <p className="text-xs text-[#9CA3AF]">{new Date(task.created_at).toLocaleDateString('zh-CN')}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-[#374151]">{typeMap[task.type] || task.type}</TableCell>
+                    <TableCell>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyleMap[task.status] || statusStyleMap.default}`}>
+                        {statusLabelMap[task.status] || task.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-[#374151]">{task.reviewer_name || '未分配'}</TableCell>
+                    <TableCell className="text-center pr-4">
+                      <Button variant="ghost" size="sm" className="text-xs text-[#2F80ED] h-7 px-2"
+                        onClick={(e) => { e.stopPropagation(); onNavigate?.('m08-task-detail') }}>
+                        进入审核
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-[#9CA3AF]">共 {filteredTasks.length} 条记录</p>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="h-8 border-[#E5E9F0] text-[#374151]">上一页</Button>
-          <Button size="sm" className="h-8 bg-[#2F80ED] text-white">1</Button>
-          <Button variant="outline" size="sm" className="h-8 border-[#E5E9F0] text-[#374151]">下一页</Button>
-        </div>
       </div>
     </div>
   )

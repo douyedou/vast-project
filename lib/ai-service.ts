@@ -35,7 +35,7 @@ class AIService {
 
   constructor() {
     this.baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434'
-    this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5:7b'
+    this.defaultModel = process.env.OLLAMA_MODEL || 'qwen2.5:3b'
   }
 
   /**
@@ -99,14 +99,14 @@ class AIService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'nomic-embed-text:latest',  // 轻量级嵌入模型
+          model: 'mxbai-embed-large:latest',  // 高质量嵌入模型（768维）
           prompt: text,
         }),
       })
 
       if (!response.ok) {
         // 如果嵌入模型不存在，返回简化向量（仅用于演示）
-        console.warn('嵌入模型未安装，返回简化向量。建议运行: ollama pull nomic-embed-text')
+        console.warn('嵌入模型未安装，返回简化向量。建议运行: ollama pull mxbai-embed-large')
         return { embedding: this.simplifiedEmbedding(text) }
       }
 

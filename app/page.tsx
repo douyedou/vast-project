@@ -144,6 +144,7 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentPage, setCurrentPage] = useState<Page>("login")
   const [currentUser, setCurrentUser] = useState<any>(null)
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('vast_token')
@@ -182,11 +183,18 @@ export default function Home() {
   }
 
   const handleM06ViewDetail = (id: string) => {
+    setSelectedCaseId(id)
     setCurrentPage("m06-model-detail")
   }
 
   const handleM07ViewDetail = (id: string) => {
+    setSelectedCaseId(id)
     setCurrentPage("m07-detail")
+  }
+
+  const handleViewCaseDetail = (id: string) => {
+    setSelectedCaseId(id)
+    setCurrentPage("m09-case-detail")
   }
 
   const handleM06Back = () => {
@@ -389,9 +397,9 @@ export default function Home() {
       case "m09-dashboard":
         return <CaseDashboard onNavigate={handleNavigate} />
       case "m09-all-cases":
-        return <AllCasesList onNavigate={handleNavigate} />
+        return <AllCasesList onNavigate={handleNavigate} onViewDetail={handleViewCaseDetail} />
       case "m09-case-detail":
-        return <CaseDetail onNavigate={handleNavigate} />
+        return <CaseDetail onNavigate={handleNavigate} caseId={selectedCaseId} />
       case "m09-waiting-cases":
         return <WaitingCases onNavigate={handleNavigate} />
       case "m09-protection-center":

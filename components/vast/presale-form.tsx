@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,24 +20,43 @@ interface PresaleFormProps {
   onBack: () => void
 }
 
-type UploadedFile = { name: string; size: string; type: string }
+type UploadedFile = { name: string; size: string; type: string; actualFile?: File }
 
 export function PresaleForm({ onBack }: PresaleFormProps) {
-  const [formData, setFormData] = useState({
-    clientName: "",
-    applicantName: "",
-    mainBusiness: "",
-    contactPerson: "",
-    techField: "",
-    consultPurpose: "",
-    patentType: "",
-    applicationMethod: "",
-    hasTimeRequirement: "no",
-    expectedDate: "",
-    isSigned: "no",
-    materialNote: "",
+  const [formData, setFormData] = useState(() => {
+    // 页面加载时自动恢复本地草稿
+    if (typeof window !== "undefined") {
+      const draft = localStorage.getItem("presale_draft")
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft)
+          return { ...defaultFormData(), ...parsed }
+        } catch {
+          // ignore parse error
+        }
+      }
+    }
+    return defaultFormData()
   })
 
+  function defaultFormData() {
+    return {
+      clientName: "",
+      applicantName: "",
+      mainBusiness: "",
+      contactPerson: "",
+      techField: "",
+      consultPurpose: "",
+      patentType: "",
+      applicationMethod: "",
+      hasTimeRequirement: "no",
+      expectedDate: "",
+      isSigned: "no",
+      materialNote: "",
+    }
+  }
+
+  const [submitting, setSubmitting] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, UploadedFile[]>>({
     disclosure: [],
     image: [],
@@ -45,22 +64,105 @@ export function PresaleForm({ onBack }: PresaleFormProps) {
     video: [],
   })
 
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const handleFileSelect = (category: string, files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const newFiles: UploadedFile[] = Array.from(files).map((f) => ({
+      name: f.name,
+      size: f.size > 1024 * 1024 ? `${(f.size / (1024 * 1024)).toFixed(1)}MB` : `${(f.size / 1024).toFixed(0)}KB`,
+      type: category,
+      actualFile: f,
+    }))
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [category]: [...prev[category], ...newFiles],
+    }))
+  }
+
+  const openFilePicker = (category: string, accept: string) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = accept
+    input.multiple = true
+    input.onchange = (e) => {
+      handleFileSelect(category, (e.target as HTMLInputElement).files)
+    }
+    input.click()
+  }
+
   const update = (key: string, value: string) =>
     setFormData((prev) => ({ ...prev, [key]: value }))
 
-  const mockUpload = (category: string) => {
-    const mockNames: Record<string, string[]> = {
-      disclosure: ["技术交底书_v1.docx", "交底材料.pdf"],
-      image: ["架构图.png", "流程图.jpg"],
-      audio: ["录音说明.mp3"],
-      video: ["演示视频.mp4"],
+  // 文件上传逻辑已改为真实文件选择（见 handleFileSelect / openFilePicker）
+
+  const handleSaveDraft = () => {
+    localStorage.setItem('presale_draft', JSON.stringify(formData))
+    alert('草稿已保存到浏览器本地存储（localStorage），刷新页面或下次访问时会自动恢复）')
+  }
+
+  const handleSubmit = async () => {
+    // 校验必填字段
+    if (!formData.clientName.trim()) {
+      alert('请填写客户名称')
+      return
     }
-    const names = mockNames[category]
-    const name = names[Math.floor(Math.random() * names.length)]
-    setUploadedFiles((prev) => ({
-      ...prev,
-      [category]: [...prev[category], { name, size: "2.1MB", type: category }],
-    }))
+    if (!formData.consultPurpose) {
+      alert('请选择咨询目的')
+      return
+    }
+    if (!formData.patentType) {
+      alert('请选择专利类型')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem('vast_token')
+      const title = formData.clientName + ' - ' + (formData.consultPurpose === 'product' ? '产品保护' : formData.consultPurpose === 'project' ? '项目申报' : formData.consultPurpose === 'title' ? '职称评定' : '其他咨询')
+
+      // 1. 创建案件
+      const caseRes = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          title,
+          type: formData.patentType,
+          description: formData.mainBusiness || formData.materialNote || '',
+          priority: 'normal',
+        }),
+      })
+      const caseData = await caseRes.json()
+      if (caseData.code !== 200) {
+        alert(caseData.message || '创建案件失败')
+        setSubmitting(false)
+        return
+      }
+
+      const caseId = caseData.data.id
+
+      // 2. 上传附件
+      const allFiles = [...uploadedFiles.disclosure, ...uploadedFiles.image, ...uploadedFiles.audio, ...uploadedFiles.video]
+      for (const file of allFiles) {
+        if (file.actualFile) {
+          const formDataUpload = new FormData()
+          formDataUpload.append('file', file.actualFile)
+          await fetch(`/api/cases/${caseId}/files`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formDataUpload,
+          })
+        }
+      }
+
+      alert('咨询提交成功！案件编号：' + caseData.data.case_id)
+      localStorage.removeItem('presale_draft')
+      onBack()
+    } catch (err: any) {
+      alert('提交失败：' + err.message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const removeFile = (category: string, index: number) => {
@@ -107,11 +209,11 @@ export function PresaleForm({ onBack }: PresaleFormProps) {
           <Button variant="outline" size="sm" className="h-9 px-4 border-[#E2E8F0]" onClick={onBack}>
             取消
           </Button>
-          <Button variant="outline" size="sm" className="h-9 px-4 border-[#E2E8F0]">
+          <Button variant="outline" size="sm" className="h-9 px-4 border-[#E2E8F0]" onClick={handleSaveDraft} disabled={submitting}>
             保存草稿
           </Button>
-          <Button size="sm" className="h-9 px-5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-sm">
-            提交咨询
+          <Button size="sm" className="h-9 px-5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-sm" onClick={handleSubmit} disabled={submitting}>
+            {submitting ? '提交中...' : '提交咨询'}
           </Button>
         </div>
       </div>
@@ -358,9 +460,9 @@ export function PresaleForm({ onBack }: PresaleFormProps) {
                 <div className="p-6">
                   <div className="grid grid-cols-2 gap-4">
                     {/* 交底书 - 必填 */}
-                    <div 
+                    <div
                       className="group border-2 border-dashed border-[#E2E8F0] rounded-xl p-4 cursor-pointer hover:border-[#2563EB] hover:bg-[#F8FAFC] transition-all"
-                      onClick={() => mockUpload("disclosure")}
+                      onClick={() => openFilePicker("disclosure", ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
                     >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#F1F5F9] group-hover:bg-[#EFF6FF] transition-colors">
@@ -397,9 +499,9 @@ export function PresaleForm({ onBack }: PresaleFormProps) {
                     </div>
 
                     {/* 图纸/图片 */}
-                    <div 
+                    <div
                       className="group border-2 border-dashed border-[#E2E8F0] rounded-xl p-4 cursor-pointer hover:border-[#2563EB] hover:bg-[#F8FAFC] transition-all"
-                      onClick={() => mockUpload("image")}
+                      onClick={() => openFilePicker("image", "image/*")}
                     >
                       <div className="flex items-center gap-3 mb-3">
                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#F1F5F9] group-hover:bg-[#EFF6FF] transition-colors">

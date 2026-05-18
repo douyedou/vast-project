@@ -36,10 +36,16 @@ export async function POST(request: NextRequest) {
        WHERE embedding IS NOT NULL
        ORDER BY embedding <=> $1::vector
        LIMIT $2`,
-      [vectorStr, topK]
+      [vectorStr, topK * 2]
     )
 
-    const sources = searchResult.rows.map((row: any) => ({
+    // 过滤低相似度结果（阈值 0.5）
+    const filteredRows = searchResult.rows.filter((row: any) => {
+      const sim = parseFloat(row.similarity)
+      return sim >= 0.5
+    }).slice(0, topK)
+
+    const sources = filteredRows.map((row: any) => ({
       id: row.id,
       title: row.title,
       content: row.content.substring(0, 500),

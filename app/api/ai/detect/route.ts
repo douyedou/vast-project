@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { requireAuth } from '@/middleware/auth'
-import { generate } from '@/lib/ai-service'
+import { aiService } from '@/lib/ai-service'
 
 // 将文本分段（每段约 500 字符）
 function splitIntoSections(text: string, maxLength: number = 500): string[] {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
 ${content.substring(0, 2000)}`
 
-    const overallResult = await generate(overallPrompt, {
+    const overallResult = await aiService.generate(overallPrompt, {
       system: '你是一个文本分析专家。请判断给定文本是由 AI 生成还是人类撰写的概率。只返回一个 0-100 的整数数字，不要解释。',
       temperature: 0.1,
     })
@@ -73,7 +73,7 @@ ${content.substring(0, 2000)}`
 ${section}`
 
         try {
-          const sectionResult = await generate(sectionPrompt, {
+          const sectionResult = await aiService.generate(sectionPrompt, {
             system: '判断文本是否由 AI 生成。只返回 0-100 的整数数字。',
             temperature: 0.1,
           })

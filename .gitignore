@@ -14,3 +14,17 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+# Build
+*.tsbuildinfo
+
+# Package managers (project uses pnpm)
+package-lock.json
+yarn.lock
+
+# Uploads
+public/uploads/
+
+# Python
+__pycache__/
+*.pyc

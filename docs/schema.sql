@@ -128,7 +128,7 @@ CREATE TABLE knowledge_base (
     field VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
-    embedding VECTOR(768),
+    embedding VECTOR(1024),
     source VARCHAR(255),
     source_type VARCHAR(20) 
         CHECK (source_type IN ('patent', 'paper', 'template', 'other')),
@@ -136,7 +136,7 @@ CREATE TABLE knowledge_base (
 );
 
 COMMENT ON TABLE knowledge_base IS '知识库/RAG 向量库';
-COMMENT ON COLUMN knowledge_base.embedding IS '文本向量，768 维，用于语义检索';
+COMMENT ON COLUMN knowledge_base.embedding IS '文本向量，1024 维，用于语义检索';
 COMMENT ON COLUMN knowledge_base.field IS '技术领域，如 electronics, mechanical, chemical';
 
 CREATE TABLE terminology (
@@ -341,18 +341,18 @@ INSERT INTO knowledge_base (field, title, content, source, source_type) VALUES
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $func$
 BEGIN
-    NEW.updated_at = NOW()
-    RETURN NEW
-END
-$func$ language plpgsql
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$func$ language plpgsql;
 
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_cases_updated_at BEFORE UPDATE ON cases
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_disclosure_docs_updated_at BEFORE UPDATE ON disclosure_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_patent_docs_updated_at BEFORE UPDATE ON patent_documents
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

@@ -13,6 +13,9 @@ import { query } from '@/lib/db'
 // OnlyOffice Document Server 地址（本地 Docker）
 const ONLYOFFICE_SERVER = process.env.ONLYOFFICE_URL || 'http://localhost:8080'
 
+// API 基础 URL（OnlyOffice 容器需通过 host.docker.internal 访问宿主机）
+const API_BASE_URL = process.env.ONLYOFFICE_CALLBACK_HOST || 'http://host.docker.internal:3000'
+
 // JWT 密钥（用于回调验证）
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'onlyoffice-secret'
 
@@ -62,11 +65,11 @@ export async function GET(request: NextRequest) {
     }
     const title = titleMap[doc.type] || '专利文档'
 
-    // 构建回调 URL
-    const callbackUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/onlyoffice/callback?documentId=${documentId}`
+    // 构建回调 URL（OnlyOffice 容器通过 host.docker.internal 访问宿主机）
+    const callbackUrl = `${API_BASE_URL}/api/onlyoffice/callback?documentId=${documentId}`
 
-    // 文档下载 URL（临时方案：通过 API 提供文档内容）
-    const documentUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/onlyoffice/document/${documentId}`
+    // 文档下载 URL（OnlyOffice 容器通过 host.docker.internal 访问宿主机）
+    const documentUrl = `${API_BASE_URL}/api/onlyoffice/document/${documentId}`
 
     const config = {
       document: {
