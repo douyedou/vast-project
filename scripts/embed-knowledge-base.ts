@@ -1,78 +1,94 @@
-/**
- * 知识库批量向量化脚本
- * 遍历 knowledge_base 表，为每条记录生成 embedding 并存入 pgvector
- *
- * 用法：npx tsx scripts/embed-knowledge-base.ts
- */
-
-import { Pool } from 'pg'
-
-const OLLAMA_URL = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434') + '/api/embeddings'
-const EMBED_MODEL = 'mxbai-embed-large:latest'
-
-async function getEmbedding(text: string): Promise<number[]> {
-  const response = await fetch(OLLAMA_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: EMBED_MODEL,
-      prompt: text,
-    }),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Ollama embed 失败: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return data.embedding
-}
+import { pool, query } from "@/lib/db"
+import { aiService } from "@/lib/ai-service"
+import { chunkText, ensureKnowledgeSchema, hashText, sanitizeKnowledgeText } from "@/lib/knowledge"
 
 async function main() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://vast_user:dydyxy999@localhost:5432/vast_db',
-  })
-  const client = await pool.connect()
+  await ensureKnowledgeSchema()
 
-  try {
-    // 获取所有需要向量化的记录
-    const rowsResult = await client.query(
-      `SELECT id, title, content FROM knowledge_base WHERE embedding IS NULL ORDER BY created_at`
+  const documents = await query(
+    `SELECT id, field, title, content, source, source_type, source_url, metadata
+     FROM knowledge_base
+     ORDER BY created_at`
+  )
+
+  console.log(`待检查知识文档: ${documents.rows.length} 条`)
+  let embeddedDocuments = 0
+  let chunksCreated = 0
+  let chunksEmbedded = 0
+
+  for (const row of documents.rows) {
+    const title = sanitizeKnowledgeText(row.title)
+    const content = sanitizeKnowledgeText(row.content)
+    if (!content) continue
+
+    const documentEmbedding = await aiService.embed(`${title}\n${content.slice(0, 4000)}`)
+    await query(
+      `UPDATE knowledge_base
+       SET embedding = $1::vector,
+           content_hash = COALESCE(content_hash, $3),
+           updated_at = NOW()
+       WHERE id = $2`,
+      [`[${documentEmbedding.embedding.join(",")}]`, row.id, hashText(`${row.source}|${title}|${content}`)]
     )
+    embeddedDocuments++
 
-    console.log(`待向量化记录: ${rowsResult.rows.length} 条\n`)
+    const existingChunks = await query(`SELECT COUNT(*)::int AS count FROM knowledge_chunks WHERE knowledge_id = $1`, [row.id])
+    if (existingChunks.rows[0].count > 0) continue
 
-    let success = 0
-    let failed = 0
-
-    for (const row of rowsResult.rows) {
-      // 构造输入文本：标题 + 内容前 400 字符（mxbai-embed-large 上下文限制 512 tokens）
-      const inputText = `${row.title}\n${row.content || ''}`.substring(0, 400)
-
-      try {
-        const embedding = await getEmbedding(inputText)
-        const vectorStr = `[${embedding.join(',')}]`
-
-        await client.query(
-          `UPDATE knowledge_base SET embedding = $1::vector WHERE id = $2`,
-          [vectorStr, row.id]
-        )
-
-        success++
-        console.log(`✅ [${success}] ${row.title.substring(0, 40)} (${embedding.length}维)`)
-      } catch (err: any) {
-        failed++
-        console.log(`❌ ${row.title.substring(0, 40)}: ${err.message}`)
-      }
+    const chunks = chunkText(content)
+    for (let index = 0; index < chunks.length; index++) {
+      const chunk = chunks[index]
+      const embedding = await aiService.embed(`${title}\n${chunk}`)
+      const chunkHash = hashText(`${row.id}|${index}|${chunk}`)
+      await query(
+        `INSERT INTO knowledge_chunks (
+          knowledge_id, chunk_index, field, title, content, embedding, source, source_type, source_url, metadata, content_hash
+         )
+         VALUES ($1, $2, $3, $4, $5, $6::vector, $7, $8, $9, $10, $11)
+         ON CONFLICT (content_hash) DO UPDATE
+         SET embedding = EXCLUDED.embedding,
+             updated_at = NOW()`,
+        [
+          row.id,
+          index,
+          row.field || "通用",
+          title,
+          chunk,
+          `[${embedding.embedding.join(",")}]`,
+          row.source,
+          row.source_type || "other",
+          row.source_url,
+          JSON.stringify(row.metadata || {}),
+          chunkHash,
+        ]
+      )
+      chunksCreated++
+      chunksEmbedded++
     }
 
-    console.log(`\n🎉 完成！成功: ${success}, 失败: ${failed}`)
-  } catch (err: any) {
-    console.error('脚本执行失败:', err)
-  } finally {
-    client.release()
-    await pool.end()
+    console.log(`已处理: ${title.substring(0, 40)} / chunks=${chunks.length}`)
   }
+
+  const summary = await query(`
+    SELECT
+      (SELECT COUNT(*) FROM knowledge_base) AS documents,
+      (SELECT COUNT(*) FROM knowledge_chunks) AS chunks,
+      (SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NULL) AS documents_without_embedding,
+      (SELECT COUNT(*) FROM knowledge_chunks WHERE embedding IS NULL) AS chunks_without_embedding
+  `)
+  console.log("向量化完成", {
+    embeddedDocuments,
+    chunksCreated,
+    chunksEmbedded,
+    summary: summary.rows[0],
+  })
 }
 
 main()
+  .catch((err) => {
+    console.error("知识库向量化失败:", err)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await pool.end()
+  })

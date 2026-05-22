@@ -15,7 +15,7 @@ OLLAMA_PID=$!
 # 等待服务就绪
 echo "⏳ 等待 Ollama 服务启动..."
 for i in $(seq 1 60); do
-    if curl -fs http://localhost:11434/api/tags >/dev/null 2>&1; then
+    if ollama list >/dev/null 2>&1; then
         echo "✅ Ollama 服务已就绪"
         break
     fi
@@ -25,7 +25,7 @@ done
 # 检查并拉取模型
 for model in $MODELS; do
     echo "🔍 检查模型: $model"
-    if curl -fs http://localhost:11434/api/tags | grep -q "\"$model\""; then
+    if ollama list | awk '{print $1}' | grep -qx "$model"; then
         echo "   ✅ 模型 $model 已存在，跳过"
     else
         echo "   ⬇️  正在拉取模型 $model（首次较慢，请耐心等待）..."

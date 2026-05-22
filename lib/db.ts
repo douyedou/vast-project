@@ -5,7 +5,7 @@
  */
 
 import 'dotenv/config'
-import { Pool, PoolClient, QueryResult } from 'pg'
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg'
 
 // 从环境变量读取数据库连接字符串
 const connectionString = process.env.DATABASE_URL
@@ -39,7 +39,7 @@ pool.on('error', (err) => {
  * 示例：
  * const result = await query('SELECT * FROM users WHERE role = $1', ['engineer'])
  */
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = any>(
   text: string,
   params?: any[]
 ): Promise<QueryResult<T>> {

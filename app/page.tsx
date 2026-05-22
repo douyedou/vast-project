@@ -28,6 +28,7 @@ import { RelationModeling } from "@/components/vast/m06/relation-modeling"
 import { CompletenessValidation } from "@/components/vast/m06/completeness-validation"
 import { DisclosurePackage } from "@/components/vast/m06/disclosure-package"
 import { SubmitM07 } from "@/components/vast/m06/submit-m07"
+import { VersionLogs } from "@/components/vast/m06/version-logs"
 // M07 组件
 import { CreationDashboard } from "@/components/vast/m07/creation-dashboard"
 import { CreationTaskList } from "@/components/vast/m07/creation-task-list"
@@ -81,6 +82,8 @@ type Page =
   | "m06-p02-decomposition"    // P02 交底书解构
   | "m06-p03-ai-inspection"    // P03 AI初检与专利检索
   | "m06-p04-supplement"       // P04 交底书补全
+  | "m06-p04-fast"             // P04 极速补全
+  | "m06-p04-expert"           // P04 专家补全
   | "m06-p05-final-disclosure" // P05 完整交底书生成
   | "m06-p06-second-search"    // P06 二次AI检索
   | "m06-p07-prior-art"        // P07 现有技术对比
@@ -140,6 +143,26 @@ type Page =
   | "sys-integration"
   | "sys-logs"
 
+const PAGE_ALIASES: Record<string, Page> = {
+  "m06-dashboard": "m06-p01-dashboard",
+  "m06-model-list": "m06-p01-dashboard",
+  "m06-model-detail": "m06-p02-decomposition",
+  "m06-create-model": "m06-p02-decomposition",
+  "m06-ai-inspection": "m06-p03-ai-inspection",
+  "m06-supplement": "m06-p04-supplement",
+  "m06-p04-supplement-mode": "m06-p04-supplement",
+  "m06-second-search": "m06-p06-second-search",
+  "m06-prior-art": "m06-p07-prior-art",
+  "m06-validation": "m06-p10-quality",
+  "m06-package": "m06-p11-package",
+  "m06-submit-m07": "m06-p12-submit",
+  "m06-p13-version-logs": "m06-p13-version",
+}
+
+function normalizePage(page: string): Page {
+  return PAGE_ALIASES[page] || (page as Page)
+}
+
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentPage, setCurrentPage] = useState<Page>("login")
@@ -179,12 +202,12 @@ export default function Home() {
   }
 
   const handleNavigate = (page: string) => {
-    setCurrentPage(page as Page)
+    setCurrentPage(normalizePage(page))
   }
 
   const handleM06ViewDetail = (id: string) => {
     setSelectedCaseId(id)
-    setCurrentPage("m06-model-detail")
+    setCurrentPage("m06-p02-decomposition")
   }
 
   const handleM07ViewDetail = (id: string) => {
@@ -198,11 +221,11 @@ export default function Home() {
   }
 
   const handleM06Back = () => {
-    setCurrentPage("m06-dashboard")
+    setCurrentPage("m06-p01-dashboard")
   }
 
   const handleM06BackToList = () => {
-    setCurrentPage("m06-model-list")
+    setCurrentPage("m06-p01-dashboard")
   }
 
   const handleM07Back = () => {
@@ -216,7 +239,6 @@ export default function Home() {
   const getSidebarActiveItem = () => {
     if (currentPage === "m05-new") return "m05-new"
     if (currentPage === "m05-detail") return "m05-list"
-    if (currentPage === "m06-model-detail") return "m06-model-list"
     if (currentPage === "m07-detail") return "m07-list"
     if (currentPage === "m07-spec-edit") return "m07-spec-draft"
     if (currentPage === "m07-return") return "m07-dashboard"
@@ -253,10 +275,19 @@ export default function Home() {
 
       // M06 页面
       case "m06-p01-dashboard":
-        return <P01Dashboard onNavigate={handleNavigate} />
+        return (
+          <P01Dashboard
+            onNavigate={handleNavigate}
+            onOpenCase={(caseId, page) => {
+              setSelectedCaseId(caseId)
+              setCurrentPage(normalizePage(page || "m06-p02-decomposition"))
+            }}
+          />
+        )
       case "m06-p02-decomposition":
         return (
           <ModelDetail
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p01-dashboard")}
             onNavigate={handleNavigate}
           />
@@ -264,25 +295,41 @@ export default function Home() {
       case "m06-p03-ai-inspection":
         return (
           <AIInspection
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p02-decomposition")}
-            onContinue={() => setCurrentPage("m06-p07-prior-art")}
+            onContinue={() => setCurrentPage("m06-p04-supplement")}
           />
         )
       case "m06-p04-supplement":
-      case "m06-p04-supplement-mode":
         return (
           <SupplementModeSelection
             onBack={() => setCurrentPage("m06-p02-decomposition")}
+            onGoInspection={() => setCurrentPage("m06-p03-ai-inspection")}
             onSelectMode={(mode) => {
-              if (mode === "fast") setCurrentPage("m06-p04-supplement")
-              else if (mode === "normal") setCurrentPage("m06-p04-supplement")
-              else setCurrentPage("m06-p04-supplement")
+              setCurrentPage("m06-p05-final-disclosure")
             }}
+          />
+        )
+      case "m06-p04-fast":
+        return (
+          <SupplementFastMode
+            caseId={selectedCaseId}
+            onBack={() => setCurrentPage("m06-p04-supplement")}
+            onNext={() => setCurrentPage("m06-p05-final-disclosure")}
+          />
+        )
+      case "m06-p04-expert":
+        return (
+          <SupplementExpertMode
+            caseId={selectedCaseId}
+            onBack={() => setCurrentPage("m06-p04-supplement")}
+            onNext={() => setCurrentPage("m06-p05-final-disclosure")}
           />
         )
       case "m06-p05-final-disclosure":
         return (
           <DisclosureSupplement
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p04-supplement")}
             onNext={() => setCurrentPage("m06-p06-second-search")}
           />
@@ -290,6 +337,7 @@ export default function Home() {
       case "m06-p06-second-search":
         return (
           <SecondSearch
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p05-final-disclosure")}
             onNext={() => setCurrentPage("m06-p07-prior-art")}
           />
@@ -297,6 +345,7 @@ export default function Home() {
       case "m06-p07-prior-art":
         return (
           <PriorArtComparison
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p06-second-search")}
             onNext={() => setCurrentPage("m06-p08-relation-mapping")}
           />
@@ -304,6 +353,7 @@ export default function Home() {
       case "m06-p08-relation-mapping":
         return (
           <RelationModeling
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p07-prior-art")}
             onNext={() => setCurrentPage("m06-p09-assets")}
           />
@@ -311,6 +361,7 @@ export default function Home() {
       case "m06-p09-assets":
         return (
           <FactStructuring
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p08-relation-mapping")}
             onNext={() => setCurrentPage("m06-p10-quality")}
           />
@@ -318,6 +369,7 @@ export default function Home() {
       case "m06-p10-quality":
         return (
           <CompletenessValidation
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p09-assets")}
             onNext={() => setCurrentPage("m06-p11-package")}
             onNavigate={handleNavigate}
@@ -326,6 +378,7 @@ export default function Home() {
       case "m06-p11-package":
         return (
           <DisclosurePackage
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p10-quality")}
             onNext={() => setCurrentPage("m06-p12-submit")}
             onNavigate={handleNavigate}
@@ -334,6 +387,7 @@ export default function Home() {
       case "m06-p12-submit":
         return (
           <SubmitM07
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p11-package")}
             onSubmit={() => setCurrentPage("m07-dashboard")}
             onNavigate={handleNavigate}
@@ -341,9 +395,9 @@ export default function Home() {
         )
       case "m06-p13-version":
         return (
-          <CompletenessValidation
+          <VersionLogs
+            caseId={selectedCaseId}
             onBack={() => setCurrentPage("m06-p01-dashboard")}
-            onNext={() => setCurrentPage("m06-p01-dashboard")}
             onNavigate={handleNavigate}
           />
         )

@@ -49,8 +49,6 @@ async function resetDatabase() {
 
   // 重新初始化
   console.log('🔄 重新初始化数据库...\n')
-  const { initDatabase } = await import('./db-init')
-  // 直接调用 initDatabase 的逻辑
   // 这里简化处理，提示用户手动执行 npm run db:init
   console.log('请执行: npm run db:init')
 }

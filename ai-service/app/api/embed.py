@@ -1,14 +1,15 @@
 """文本向量化接口"""
 
 import httpx
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 
 router = APIRouter()
 
-OLLAMA_URL = "http://localhost:11434"
-EMBED_MODEL = "nomic-embed-text:latest"
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "mxbai-embed-large:latest")
 
 
 class EmbedRequest(BaseModel):

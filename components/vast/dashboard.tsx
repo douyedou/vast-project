@@ -1,5 +1,6 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge, type DisclosureStatus } from "./status-badge"
@@ -30,7 +31,7 @@ import {
 interface StatCardProps {
   title: string
   value: number
-  icon: React.ComponentType<{ className?: string }>
+  icon: React.ComponentType<{ className?: string; style?: CSSProperties }>
   color: string
   bgColor: string
   trend?: string
