@@ -10,6 +10,7 @@ __v0_jsx-dev-runtime.ts
 .env
 .env*.local
 
+
 # Common ignores
 node_modules
 .next/
@@ -28,3 +29,9 @@ public/uploads/
 # Python
 __pycache__/
 *.pyc
+
+交底完整-授权专利/
+.env.example
+.gitignore
+.claude/
+

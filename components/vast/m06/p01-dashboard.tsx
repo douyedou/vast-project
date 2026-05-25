@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -23,564 +23,552 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  AlertTriangle,
-  Send,
-  Clock,
-  Search,
-  RefreshCw,
-  CheckCircle2,
   AlertCircle,
-  FileText,
-  ChevronRight,
-  MoreHorizontal,
-  Brain,
-  Package,
-  ChevronLeft,
-  Layers,
   ArrowUpDown,
+  Brain,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  FileClock,
+  FileText,
+  MoreHorizontal,
+  Package,
+  RefreshCw,
+  Search,
+  Send,
 } from "lucide-react"
+import { M06_STAGE_LABELS, M06_STAGE_ROUTES, M06Stage, mergeM06Content } from "@/lib/m06"
 
 interface EngineDashboardProps {
   onNavigate: (page: string) => void
+  onOpenCase?: (caseId: string, page?: string) => void
 }
 
-// 阶段顺序 - 用于判断是否到达质量控制阶段
-const STAGE_ORDER = ["DECOMPOSITION", "AI_PRE_CHECK", "SUPPLEMENT", "FINAL_DISCLOSURE", "SECOND_SEARCH", "COMPARE", "RELATE", "STRUCTURE", "VALIDATE", "PACKAGE", "SUBMIT"]
-const QUALITY_STAGE_INDEX = STAGE_ORDER.indexOf("VALIDATE") // 质量控制阶段索引
+interface CaseRow {
+  id: string
+  case_id?: string
+  title: string
+  type?: string
+  status?: string
+  priority?: string
+  description?: string
+  engineer_name?: string
+  applicant_name?: string
+  reviewer_name?: string
+  created_at?: string
+  updated_at?: string
+}
 
-// 交底书数据 - 全部从M05流转而来
-// 售前来源：只到AI初检阶段，完成后返回M05
-// 立案来源：走完整流程直到提交M07
-const DISCLOSURES = [
-  { 
-    id: "D-2024-0601", 
-    topic: "一种基于大模型的专利质量自动审核方法", 
-    patentType: "发明",
-    field: "人工智能",
-    source: "filed",  // 立案
-    stage: "SECOND_SEARCH", 
-    stageLabel: "二次检索", 
-    status: "BLOCKED", 
-    risk: "HIGH", 
-    score: null, 
-    engineer: "张明", 
-    sales: "王丽",
-    support: "李娜",
-    updateTime: "2024-01-15 10:30" 
-  },
-  { 
-    id: "D-2024-0602", 
-    topic: "智能终端多eSIM切换控制电路", 
-    patentType: "发明",
-    field: "通信技术",
-    source: "presale",  // 售前 - 只到AI初检
-    stage: "AI_PRE_CHECK", 
-    stageLabel: "AI初检", 
-    status: "PROCESSING", 
-    risk: null,
-    score: null,
-    engineer: "李华", 
-    sales: "张芳",
-    support: "王敏",
-    updateTime: "2024-01-15 09:25" 
-  },
-  { 
-    id: "D-2024-0603", 
-    topic: "无人机避障路径规划系统", 
-    patentType: "发明",
-    field: "机器人技术",
-    source: "filed",  // 立案
-    stage: "PACKAGE", 
-    stageLabel: "数据包", 
-    status: "READY", 
-    risk: "LOW", 
-    score: 88, 
-    engineer: "王伟", 
-    sales: "赵琳",
-    support: "孙艳",
-    updateTime: "2024-01-15 08:15" 
-  },
-  { 
-    id: "D-2024-0604", 
-    topic: "基于深度学习的图像识别方法", 
-    patentType: "实用新型",
-    field: "人工智能",
-    source: "presale",  // 售前 - 只到AI初检
-    stage: "DECOMPOSITION", 
-    stageLabel: "解构", 
-    status: "PROCESSING", 
-    risk: null,
-    score: null,
-    engineer: "赵强", 
-    sales: "刘倩",
-    support: "陈静",
-    updateTime: "2024-01-14 16:45" 
-  },
-  { 
-    id: "D-2024-0605", 
-    topic: "智能家居控制系统及其控制方法", 
-    patentType: "发明",
-    field: "物联网",
-    source: "filed",  // 立案
-    stage: "VALIDATE", 
-    stageLabel: "质量控制", 
-    status: "PROCESSING", 
-    risk: "LOW", 
-    score: 90,
-    engineer: "孙磊", 
-    sales: "周婷",
-    support: "吴静",
-    updateTime: "2024-01-14 14:20" 
-  },
-  { 
-    id: "D-2024-0606", 
-    topic: "区块链数据存储与验证方法", 
-    patentType: "发明",
-    field: "区块链",
-    source: "filed",  // 立案
-    stage: "COMPARE", 
-    stageLabel: "技术对比", 
-    status: "PROCESSING", 
-    risk: "MEDIUM",
-    score: null,
-    engineer: "周杰", 
-    sales: "吴燕",
-    support: "郑霞",
-    updateTime: "2024-01-14 11:30" 
-  },
-  { 
-    id: "D-2024-0607", 
-    topic: "一种新型锂电池快充控制方法", 
-    patentType: "发明",
-    field: "电池技术",
-    source: "filed",  // 立案
-    stage: "DECOMPOSITION", 
-    stageLabel: "解构", 
-    status: "PROCESSING", 
-    risk: null,
-    score: null,
-    engineer: "钱坤", 
-    sales: "郑红",
-    support: "冯雪",
-    updateTime: "2024-01-14 09:00" 
-  },
-  { 
-    id: "D-2024-0608", 
-    topic: "基于5G的工业物联网通信协议优化", 
-    patentType: "发明",
-    field: "通信技术",
-    source: "presale",  // 售前 - 只到AI初检
-    stage: "AI_PRE_CHECK", 
-    stageLabel: "AI初检", 
-    status: "PROCESSING", 
-    risk: null,
-    score: null,
-    engineer: "吴刚", 
-    sales: "冯丽",
-    support: "黄莉",
-    updateTime: "2024-01-13 16:30" 
-  },
-  { 
-    id: "D-2024-0609", 
-    topic: "智能语音交互系统优化方法", 
-    patentType: "发明",
-    field: "人工智能",
-    source: "presale",  // 售前 - 已完成初检，待返回M05
-    stage: "AI_PRE_CHECK", 
-    stageLabel: "AI初检", 
-    status: "READY",  // 售前初检完成，就绪返回M05
-    risk: "LOW",
-    score: null,
-    engineer: "郑伟", 
-    sales: "黄芳",
-    support: "杨静",
-    updateTime: "2024-01-13 15:00" 
-  },
-  { 
-    id: "D-2024-0610", 
-    topic: "分布式存储系统架构设计", 
-    patentType: "发明",
-    field: "云计算",
-    source: "filed",  // 立案
-    stage: "RELATE", 
-    stageLabel: "关系建模", 
-    status: "PROCESSING", 
-    risk: "MEDIUM",
-    score: null,
-    engineer: "杨明", 
-    sales: "许丽",
-    support: "何燕",
-    updateTime: "2024-01-13 11:20" 
-  },
-]
+interface DisclosureRow {
+  id: string
+  caseUuid: string
+  caseNo: string
+  topic: string
+  patentType: string
+  field: string
+  source: string
+  stage: M06Stage
+  stageLabel: string
+  status: "READY" | "PROCESSING" | "BLOCKED" | "SUBMITTED" | "EMPTY"
+  risk: "LOW" | "MEDIUM" | "HIGH" | null
+  score: number | null
+  engineer: string
+  applicant: string
+  updateTime: string
+  hasDocument: boolean
+  documentId?: string
+  version?: number
+}
 
-export function EngineDashboard({ onNavigate }: EngineDashboardProps) {
+const PAGE_SIZE = 8
+
+const STAGE_FILTER_MAP: Record<string, M06Stage> = {
+  decomposition: "DECOMPOSITION",
+  ai_check: "AI_PRE_CHECK",
+  supplement: "SUPPLEMENT",
+  second_search: "SECOND_SEARCH",
+  compare: "COMPARE",
+  validate: "VALIDATE",
+  package: "PACKAGE",
+  submit: "SUBMIT",
+}
+
+const STATUS_LABELS: Record<DisclosureRow["status"], { label: string; className: string }> = {
+  READY: { label: "可继续", className: "bg-green-50 text-green-700 border-green-200" },
+  PROCESSING: { label: "进行中", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  BLOCKED: { label: "需处理", className: "bg-red-50 text-red-700 border-red-200" },
+  SUBMITTED: { label: "已提交", className: "bg-slate-100 text-slate-700 border-slate-200" },
+  EMPTY: { label: "未开始", className: "bg-amber-50 text-amber-700 border-amber-200" },
+}
+
+const RISK_LABELS = {
+  LOW: { label: "低", className: "text-green-700" },
+  MEDIUM: { label: "中", className: "text-amber-700" },
+  HIGH: { label: "高", className: "text-red-700" },
+}
+
+function getAuthHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? localStorage.getItem("vast_token") : null
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
+async function parseApi<T>(response: Response): Promise<T> {
+  const payload = await response.json()
+  if (payload.code !== 200) throw new Error(payload.message || "请求失败")
+  return payload.data as T
+}
+
+function patentTypeLabel(type?: string) {
+  if (type === "utility") return "实用新型"
+  if (type === "design") return "外观设计"
+  return "发明"
+}
+
+function formatTime(value?: string) {
+  if (!value) return "-"
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function inferField(caseData: CaseRow) {
+  const text = `${caseData.title || ""} ${caseData.description || ""}`
+  if (/机械|吊具|夹持|拉脱|试验台/.test(text)) return "机械"
+  if (/树脂|血液|灌流|聚苯乙烯|生物|化学/.test(text)) return "生物化学"
+  if (/通信|救援|水面|系统|软件|AI|人工智能|模型/.test(text)) return "软件通信/AI"
+  return "通用"
+}
+
+function stageFromCaseStatus(status?: string): M06Stage {
+  if (status === "writing" || status === "reviewing" || status === "completed") return "SUBMIT"
+  if (status === "disclosure_pending") return "DECOMPOSITION"
+  return "DECOMPOSITION"
+}
+
+function statusFromDocument(caseStatus: string | undefined, docStatus: string | undefined, score: number | null, hasBlocking: boolean): DisclosureRow["status"] {
+  if (caseStatus === "writing" || caseStatus === "reviewing" || caseStatus === "completed" || docStatus === "approved") return "SUBMITTED"
+  if (!docStatus) return "EMPTY"
+  if (hasBlocking) return "BLOCKED"
+  if (score !== null && score >= 70) return "READY"
+  return "PROCESSING"
+}
+
+async function buildDisclosureRow(caseData: CaseRow, headers: HeadersInit): Promise<DisclosureRow> {
+  try {
+    const response = await fetch(`/api/cases/${caseData.id}/disclosure`, { headers })
+    if (!response.ok) throw new Error("no disclosure")
+    const data = await parseApi<{ document: any; case: CaseRow }>(response)
+    const content = mergeM06Content(data.document.content_json, data.case)
+    const validation = content.aiResults.completeness
+    const score = content.workflow.qualityScore || validation?.score || null
+    const hasBlocking = Boolean(validation?.issues?.some((issue) => issue.severity === "blocking"))
+    const stage = content.meta.currentStage || stageFromCaseStatus(caseData.status)
+    const highestSource = content.sourceMaterials.length ? "资料上传" : "案件资料"
+
+    return {
+      id: data.document.id,
+      caseUuid: caseData.id,
+      caseNo: caseData.case_id || "-",
+      topic: caseData.title,
+      patentType: patentTypeLabel(caseData.type),
+      field: inferField(caseData),
+      source: highestSource,
+      stage,
+      stageLabel: M06_STAGE_LABELS[stage],
+      status: statusFromDocument(caseData.status, data.document.status, score, hasBlocking),
+      risk: content.aiResults.initialInspection?.riskLevel
+        ? content.aiResults.initialInspection.riskLevel.toUpperCase() as DisclosureRow["risk"]
+        : null,
+      score,
+      engineer: caseData.engineer_name || "-",
+      applicant: caseData.applicant_name || "-",
+      updateTime: formatTime(data.document.updated_at || caseData.updated_at),
+      hasDocument: true,
+      documentId: data.document.id,
+      version: data.document.version,
+    }
+  } catch {
+    const stage = stageFromCaseStatus(caseData.status)
+    return {
+      id: caseData.case_id || caseData.id,
+      caseUuid: caseData.id,
+      caseNo: caseData.case_id || "-",
+      topic: caseData.title,
+      patentType: patentTypeLabel(caseData.type),
+      field: inferField(caseData),
+      source: "案件资料",
+      stage,
+      stageLabel: M06_STAGE_LABELS[stage],
+      status: statusFromDocument(caseData.status, undefined, null, false),
+      risk: null,
+      score: null,
+      engineer: caseData.engineer_name || "-",
+      applicant: caseData.applicant_name || "-",
+      updateTime: formatTime(caseData.updated_at || caseData.created_at),
+      hasDocument: false,
+    }
+  }
+}
+
+export function EngineDashboard({ onNavigate, onOpenCase }: EngineDashboardProps) {
+  const [rows, setRows] = useState<DisclosureRow[]>([])
   const [searchKeyword, setSearchKeyword] = useState("")
   const [filterSource, setFilterSource] = useState("all")
   const [filterStage, setFilterStage] = useState("all")
   const [filterStatus, setFilterStatus] = useState("all")
+  const [sortKey, setSortKey] = useState<"update" | "score" | "stage">("update")
+  const [sortDesc, setSortDesc] = useState(true)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  // 统计数据 - 按来源区分
-  const stats = {
-    total: DISCLOSURES.length,
-    filed: DISCLOSURES.filter(d => d.source === "filed").length,
-    presale: DISCLOSURES.filter(d => d.source === "presale").length,
-    processing: DISCLOSURES.filter(d => d.status === "PROCESSING").length,
-    blocked: DISCLOSURES.filter(d => d.status === "BLOCKED").length,
-    ready: DISCLOSURES.filter(d => d.status === "READY").length,
+  const loadDisclosures = useCallback(async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
+      const headers = getAuthHeaders()
+      const response = await fetch("/api/cases?page=1&pageSize=100", { headers })
+      const data = await parseApi<{ list: CaseRow[] }>(response)
+      const built = await Promise.all((data.list || []).map((caseData) => buildDisclosureRow(caseData, headers)))
+      setRows(built)
+      setPage(1)
+    } catch (err: any) {
+      setLoadError(err.message || "加载 M06 工作台失败")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadDisclosures()
+  }, [loadDisclosures])
+
+  const filteredRows = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase()
+    const list = rows.filter((item) => {
+      const matchKeyword =
+        !keyword ||
+        item.topic.toLowerCase().includes(keyword) ||
+        item.caseNo.toLowerCase().includes(keyword) ||
+        item.field.toLowerCase().includes(keyword)
+      const matchSource = filterSource === "all" || item.source === filterSource
+      const matchStage = filterStage === "all" || item.stage === STAGE_FILTER_MAP[filterStage]
+      const matchStatus = filterStatus === "all" || item.status === filterStatus
+      return matchKeyword && matchSource && matchStage && matchStatus
+    })
+
+    const sorted = [...list].sort((a, b) => {
+      if (sortKey === "score") return (a.score || 0) - (b.score || 0)
+      if (sortKey === "stage") return a.stageLabel.localeCompare(b.stageLabel, "zh-CN")
+      return a.updateTime.localeCompare(b.updateTime, "zh-CN")
+    })
+    return sortDesc ? sorted.reverse() : sorted
+  }, [filterSource, filterStage, filterStatus, rows, searchKeyword, sortDesc, sortKey])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE))
+  const pageRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const stats = useMemo(() => {
+    const total = rows.length
+    const processing = rows.filter((item) => item.status === "PROCESSING").length
+    const blocked = rows.filter((item) => item.status === "BLOCKED").length
+    const ready = rows.filter((item) => item.status === "READY").length
+    const submitted = rows.filter((item) => item.status === "SUBMITTED").length
+    return { total, processing, blocked, ready, submitted }
+  }, [rows])
+
+  function openCase(row: DisclosureRow, pageId = M06_STAGE_ROUTES[row.stage]) {
+    if (onOpenCase) onOpenCase(row.caseUuid, pageId)
+    else onNavigate(pageId)
   }
 
-  const getSourceBadge = (source: string) => {
-    return source === "presale"
-      ? <Badge variant="outline" className="text-xs px-2 py-0.5 border-[#7C3AED] text-[#7C3AED] bg-[#F5F3FF]">售前</Badge>
-      : <Badge variant="outline" className="text-xs px-2 py-0.5 border-[#2563EB] text-[#2563EB] bg-[#EFF6FF]">立案</Badge>
+  function applyStatFilter(status: "all" | DisclosureRow["status"]) {
+    setFilterStatus(status)
+    setPage(1)
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "BLOCKED": return (
-        <Badge className="text-xs px-2.5 py-0.5 bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] font-medium">
-          阻断
-        </Badge>
-      )
-      case "READY": return (
-        <Badge className="text-xs px-2.5 py-0.5 bg-[#F0FDF4] text-[#16A34A] border border-[#BBF7D0] font-medium">
-          就绪
-        </Badge>
-      )
-      default: return (
-        <Badge className="text-xs px-2.5 py-0.5 bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] font-medium">
-          处理中
-        </Badge>
-      )
+  function toggleSort(nextKey: typeof sortKey) {
+    if (sortKey === nextKey) setSortDesc((current) => !current)
+    else {
+      setSortKey(nextKey)
+      setSortDesc(true)
     }
   }
-
-  const getRiskBadge = (risk: string) => {
-    switch (risk) {
-      case "HIGH": return (
-        <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#DC2626]">
-          <span className="w-2 h-2 rounded-full bg-[#DC2626]" />高
-        </span>
-      )
-      case "MEDIUM": return (
-        <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#F59E0B]">
-          <span className="w-2 h-2 rounded-full bg-[#F59E0B]" />中
-        </span>
-      )
-      case "LOW": return (
-        <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#16A34A]">
-          <span className="w-2 h-2 rounded-full bg-[#16A34A]" />低
-        </span>
-      )
-      default: return <span className="text-[#D1D5DB] text-base">—</span>
-    }
-  }
-
-  const getStageBadge = (stageLabel: string) => {
-    const styles: Record<string, string> = {
-      "解构":    "bg-slate-100  text-slate-700  border-slate-200",
-      "AI初检":  "bg-blue-50    text-blue-700   border-blue-200",
-      "交底补全": "bg-indigo-50  text-indigo-700 border-indigo-200",
-      "完整交底": "bg-purple-50  text-purple-700 border-purple-200",
-      "二次检索": "bg-cyan-50    text-cyan-700   border-cyan-200",
-      "技术对比": "bg-teal-50    text-teal-700   border-teal-200",
-      "关系建模": "bg-emerald-50 text-emerald-700 border-emerald-200",
-      "结构化":   "bg-green-50   text-green-700  border-green-200",
-      "质量控制": "bg-amber-50   text-amber-700  border-amber-200",
-      "数据包":   "bg-orange-50  text-orange-700 border-orange-200",
-    }
-    return (
-      <Badge variant="outline" className={`text-xs px-2.5 py-0.5 font-medium border ${styles[stageLabel] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
-        {stageLabel}
-      </Badge>
-    )
-  }
-
-  const getStageRoute = (stage: string) => {
-    const routes: Record<string, string> = {
-      "DECOMPOSITION": "m06-p02-decomposition",
-      "AI_PRE_CHECK": "m06-p03-ai-inspection",
-      "SUPPLEMENT": "m06-p04-supplement",
-      "FINAL_DISCLOSURE": "m06-p05-final-disclosure",
-      "SECOND_SEARCH": "m06-p06-second-search",
-      "COMPARE": "m06-p07-prior-art",
-      "RELATE": "m06-p08-relation-mapping",
-      "STRUCTURE": "m06-p09-assets",
-      "VALIDATE": "m06-p10-quality",
-      "PACKAGE": "m06-p11-package",
-    }
-    return routes[stage] || "m06-p02-decomposition"
-  }
-
-  // 筛选数据
-  const filteredData = DISCLOSURES.filter(item => {
-    if (searchKeyword && !item.topic.includes(searchKeyword) && !item.id.includes(searchKeyword)) return false
-    if (filterSource !== "all" && item.source !== filterSource) return false
-    if (filterStatus !== "all" && item.status !== filterStatus.toUpperCase()) return false
-    return true
-  })
 
   return (
-    <div className="flex flex-col h-full bg-[#F5F7FA]">
-      {/* 页面头部 */}
-      <header className="bg-white border-b border-[#E5E7EB] px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-semibold text-[#111827]">交底书工作台</h1>
-            <p className="text-sm text-[#6B7280] mt-0.5">管理从M05流转的交底书任务</p>
+    <div className="p-6 bg-[#F8FAFC] min-h-screen">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-[#111827]">交底书引擎工作台</h1>
+          <p className="text-sm text-[#6B7280] mt-1">从案件进入 M06，完成解构、初检、补全、检索、校验、数据包与提交。</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={loadDisclosures} disabled={loading} className="gap-2">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          刷新
+        </Button>
+      </div>
+
+      {loadError && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+        <button onClick={() => applyStatFilter("all")} className="rounded-lg border bg-white p-4 text-left hover:border-blue-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#6B7280]">全部案件</span>
+            <FileText className="h-4 w-4 text-blue-600" />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onNavigate("m06-p10-quality")}>
-              <AlertTriangle size={14} className="mr-1.5 text-[#DC2626]" />
-              阻断任务 ({stats.blocked})
-            </Button>
-            <Button variant="outline" size="sm" className="text-[#16A34A] border-[#16A34A]" onClick={() => onNavigate("m06-p12-submit")}>
-              <Send size={14} className="mr-1.5" />
-              待提交M07 ({stats.ready})
-            </Button>
-            <Button variant="ghost" size="icon" className="h-9 w-9">
-              <RefreshCw size={16} />
-            </Button>
+          <div className="mt-2 text-2xl font-semibold text-[#111827]">{stats.total}</div>
+        </button>
+        <button onClick={() => applyStatFilter("PROCESSING")} className="rounded-lg border bg-white p-4 text-left hover:border-blue-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#6B7280]">进行中</span>
+            <Clock className="h-4 w-4 text-blue-600" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[#111827]">{stats.processing}</div>
+        </button>
+        <button onClick={() => applyStatFilter("BLOCKED")} className="rounded-lg border bg-white p-4 text-left hover:border-red-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#6B7280]">需处理</span>
+            <AlertCircle className="h-4 w-4 text-red-600" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[#111827]">{stats.blocked}</div>
+        </button>
+        <button onClick={() => applyStatFilter("READY")} className="rounded-lg border bg-white p-4 text-left hover:border-green-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#6B7280]">可继续</span>
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[#111827]">{stats.ready}</div>
+        </button>
+        <button onClick={() => applyStatFilter("SUBMITTED")} className="rounded-lg border bg-white p-4 text-left hover:border-slate-300">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[#6B7280]">已提交</span>
+            <Send className="h-4 w-4 text-slate-600" />
+          </div>
+          <div className="mt-2 text-2xl font-semibold text-[#111827]">{stats.submitted}</div>
+        </button>
+      </div>
+
+      <div className="rounded-lg border bg-white">
+        <div className="p-4 border-b flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
+          <div className="relative flex-1 max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
+            <Input
+              value={searchKeyword}
+              onChange={(event) => {
+                setSearchKeyword(event.target.value)
+                setPage(1)
+              }}
+              placeholder="搜索案件号、标题、领域"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Select value={filterSource} onValueChange={(value) => { setFilterSource(value); setPage(1) }}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="来源" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部来源</SelectItem>
+                <SelectItem value="案件资料">案件资料</SelectItem>
+                <SelectItem value="资料上传">资料上传</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStage} onValueChange={(value) => { setFilterStage(value); setPage(1) }}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="阶段" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部阶段</SelectItem>
+                <SelectItem value="decomposition">交底书解构</SelectItem>
+                <SelectItem value="ai_check">AI初检</SelectItem>
+                <SelectItem value="supplement">交底补全</SelectItem>
+                <SelectItem value="second_search">二次检索</SelectItem>
+                <SelectItem value="compare">现有技术对比</SelectItem>
+                <SelectItem value="validate">质量控制</SelectItem>
+                <SelectItem value="package">数据包</SelectItem>
+                <SelectItem value="submit">提交M07</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={(value) => { setFilterStatus(value); setPage(1) }}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="EMPTY">未开始</SelectItem>
+                <SelectItem value="PROCESSING">进行中</SelectItem>
+                <SelectItem value="BLOCKED">需处理</SelectItem>
+                <SelectItem value="READY">可继续</SelectItem>
+                <SelectItem value="SUBMITTED">已提交</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        {/* 统计卡片 - 按来源区分 */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-[#F9FAFB] border border-[#E5E7EB] rounded-lg p-4">
-            <div className="flex items-center gap-2 text-[#6B7280] text-sm mb-1">
-              <FileText size={16} />
-              全部任务
-            </div>
-            <div className="text-2xl font-bold text-[#111827]">{stats.total}</div>
-            <div className="text-xs text-[#9CA3AF] mt-1">处理中 {stats.processing}</div>
-          </div>
-          <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-4 cursor-pointer hover:bg-[#DBEAFE] transition" onClick={() => setFilterSource("filed")}>
-            <div className="flex items-center gap-2 text-[#2563EB] text-sm mb-1">
-              <FileText size={16} />
-              立案来源
-            </div>
-            <div className="text-2xl font-bold text-[#111827]">{stats.filed}</div>
-            <div className="text-xs text-[#9CA3AF] mt-1">完整流程至M07</div>
-          </div>
-          <div className="bg-[#F5F3FF] border border-[#DDD6FE] rounded-lg p-4 cursor-pointer hover:bg-[#EDE9FE] transition" onClick={() => setFilterSource("presale")}>
-            <div className="flex items-center gap-2 text-[#7C3AED] text-sm mb-1">
-              <FileText size={16} />
-              售前来源
-            </div>
-            <div className="text-2xl font-bold text-[#111827]">{stats.presale}</div>
-            <div className="text-xs text-[#9CA3AF] mt-1">初检后返回M05</div>
-          </div>
-          <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-lg p-4 cursor-pointer hover:bg-[#DCFCE7] transition" onClick={() => setFilterStatus("processing")}>
-            <div className="flex items-center gap-2 text-[#16A34A] text-sm mb-1">
-              <Clock size={16} />
-              进行中
-            </div>
-            <div className="text-2xl font-bold text-[#111827]">{stats.processing}</div>
-            <div className="text-xs text-[#9CA3AF] mt-1">阻断 {stats.blocked} / 就绪 {stats.ready}</div>
-          </div>
-        </div>
-      </header>
-
-      {/* 主体内容 */}
-      <main className="flex-1 overflow-hidden p-6">
-        <div className="bg-white border border-[#E5E7EB] rounded-xl h-full flex flex-col">
-          {/* 筛选栏 */}
-          <div className="flex items-center justify-between gap-4 p-4 border-b border-[#E5E7EB]">
-            <div className="flex items-center gap-3 flex-1">
-              <div className="relative w-72">
-                <Search className="absolute left-3 top-2.5 text-[#9CA3AF]" size={16} />
-                <Input 
-                  className="pl-9 h-9 bg-[#F9FAFB] border-[#E5E7EB]" 
-                  placeholder="搜索编号或技术主题..." 
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                />
-              </div>
-              <Select value={filterSource} onValueChange={setFilterSource}>
-                <SelectTrigger className="w-28 h-9">
-                  <SelectValue placeholder="来源" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部来源</SelectItem>
-                  <SelectItem value="presale">售前咨询</SelectItem>
-                  <SelectItem value="filed">立案</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterStage} onValueChange={setFilterStage}>
-                <SelectTrigger className="w-28 h-9">
-                  <SelectValue placeholder="阶段" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部阶段</SelectItem>
-                  <SelectItem value="decomposition">解构</SelectItem>
-                  <SelectItem value="ai_check">AI初检</SelectItem>
-                  <SelectItem value="supplement">交底补全</SelectItem>
-                  <SelectItem value="second_search">二次检索</SelectItem>
-                  <SelectItem value="compare">技术对比</SelectItem>
-                  <SelectItem value="validate">质量控制</SelectItem>
-                  <SelectItem value="package">数据包</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-28 h-9">
-                  <SelectValue placeholder="状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="processing">处理中</SelectItem>
-                  <SelectItem value="blocked">阻断</SelectItem>
-                  <SelectItem value="ready">就绪</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-sm text-[#6B7280]">
-              共 <span className="font-medium text-[#111827]">{filteredData.length}</span> 条
-            </div>
-          </div>
-
-          {/* 数据表格 */}
-          <div className="flex-1 overflow-auto">
-            <Table>
-              <TableHeader className="bg-[#F9FAFB] sticky top-0">
-                <TableRow className="text-sm">
-                  <TableHead className="w-32 text-[#374151] font-semibold">编号</TableHead>
-                  <TableHead className="w-20 text-[#374151] font-semibold">来源</TableHead>
-                  <TableHead className="text-[#374151] font-semibold">技术主题</TableHead>
-                  <TableHead className="w-24 text-[#374151] font-semibold">专利类型</TableHead>
-                  <TableHead className="w-24 text-[#374151] font-semibold">技术领域</TableHead>
-                  <TableHead className="w-28 text-[#374151] font-semibold">当前阶段</TableHead>
-                  <TableHead className="w-24 text-[#374151] font-semibold">状态</TableHead>
-                  <TableHead className="w-20 text-[#374151] font-semibold">风险</TableHead>
-                  <TableHead className="w-20 text-center text-[#374151] font-semibold">
-                    <div className="flex items-center justify-center gap-1">
-                      质量分
-                      <ArrowUpDown size={13} className="text-[#9CA3AF]" />
-                    </div>
-                  </TableHead>
-                  <TableHead className="w-20 text-[#374151] font-semibold">工程师</TableHead>
-                  <TableHead className="w-20 text-[#374151] font-semibold">销售</TableHead>
-                  <TableHead className="w-20 text-[#374151] font-semibold">客服</TableHead>
-                  <TableHead className="w-32 text-[#374151] font-semibold">更新时间</TableHead>
-                  <TableHead className="w-28 text-center text-[#374151] font-semibold">操作</TableHead>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-[260px]">案件</TableHead>
+                <TableHead>类型/领域</TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" className="h-7 px-1 gap-1" onClick={() => toggleSort("stage")}>
+                    当前阶段
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                  </Button>
+                </TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>风险</TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" className="h-7 px-1 gap-1" onClick={() => toggleSort("score")}>
+                    质量分
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                  </Button>
+                </TableHead>
+                <TableHead>负责人</TableHead>
+                <TableHead>
+                  <Button variant="ghost" size="sm" className="h-7 px-1 gap-1" onClick={() => toggleSort("update")}>
+                    更新时间
+                    <ArrowUpDown className="h-3.5 w-3.5" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-32 text-center text-[#6B7280]">
+                    正在加载 M06 案件...
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className={`cursor-pointer transition-colors ${item.status === "BLOCKED" ? "bg-[#FEF9F9] hover:bg-[#FEF2F2]" : "hover:bg-[#F5F9FF]"}`}
-                    onClick={() => onNavigate(getStageRoute(item.stage))}
-                  >
-                    <TableCell className="font-mono text-sm text-[#6B7280] py-3.5">{item.id}</TableCell>
-                    <TableCell className="py-3.5">{getSourceBadge(item.source)}</TableCell>
-                    <TableCell className="py-3.5">
-                      <div>
-                        <span className="text-sm font-medium text-[#111827] line-clamp-1">{item.topic}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3.5">
-                      <Badge variant="outline" className="text-xs px-2 py-0.5 font-medium border-[#D1D5DB] text-[#6B7280]">
-                        {item.patentType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="py-3.5">
-                      <span className="text-sm text-[#374151]">{item.field}</span>
-                    </TableCell>
-                    <TableCell className="py-3.5">{getStageBadge(item.stageLabel)}</TableCell>
-                    <TableCell className="py-3.5">{getStatusBadge(item.status)}</TableCell>
-                    <TableCell className="py-3.5">
-                      {item.risk ? getRiskBadge(item.risk) : <span className="text-[#D1D5DB] text-base">—</span>}
-                    </TableCell>
-                    <TableCell className="text-center py-3.5">
-                      {(() => {
-                        const stageIdx = STAGE_ORDER.indexOf(item.stage)
-                        const hasScore = stageIdx >= QUALITY_STAGE_INDEX && item.score !== null
-                        if (!hasScore) return <span className="text-[#D1D5DB] text-base">—</span>
-                        return (
-                          <span className={`text-base font-bold ${item.score! >= 85 ? "text-[#16A34A]" : item.score! >= 70 ? "text-[#F59E0B]" : "text-[#DC2626]"}`}>
-                            {item.score}
-                          </span>
-                        )
-                      })()}
-                    </TableCell>
-                    <TableCell className="text-sm text-[#374151] py-3.5">{item.engineer}</TableCell>
-                    <TableCell className="text-sm text-[#6B7280] py-3.5">{item.sales}</TableCell>
-                    <TableCell className="text-sm text-[#6B7280] py-3.5">{item.support}</TableCell>
-                    <TableCell className="text-sm text-[#9CA3AF] py-3.5">{item.updateTime}</TableCell>
-                    <TableCell className="py-3.5">
-                      <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        {/* 进入当前阶段 - 主操作 */}
-                        <Button
-                          size="sm"
-                          className="h-8 px-3 text-xs bg-[#2563EB] hover:bg-[#1D4ED8] text-white gap-1"
-                          onClick={() => onNavigate(getStageRoute(item.stage))}
-                        >
-                          进入
-                          <ChevronRight size={13} />
-                        </Button>
-                        {/* 更多操作 */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-8 w-8 border-[#E5E7EB]">
-                              <MoreHorizontal size={15} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-36">
-                            <DropdownMenuItem className="text-sm" onClick={() => onNavigate("m06-p02-decomposition")}>
-                              <Layers size={14} className="mr-2" />
-                              查看解构
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-sm" onClick={() => onNavigate("m06-p03-ai-inspection")}>
-                              <Brain size={14} className="mr-2" />
-                              AI初检
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-sm" onClick={() => onNavigate("m06-p11-package")}>
-                              <Package size={14} className="mr-2" />
-                              数据包
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-sm" onClick={() => onNavigate("m06-p13-version")}>
-                              <Clock size={14} className="mr-2" />
-                              版本日志
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+              ) : pageRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-36 text-center">
+                    <div className="flex flex-col items-center gap-2 text-[#6B7280]">
+                      <Package className="h-8 w-8 text-[#CBD5E1]" />
+                      <div className="text-sm">没有匹配的交底书任务</div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                pageRows.map((row) => {
+                  const status = STATUS_LABELS[row.status]
+                  const risk = row.risk ? RISK_LABELS[row.risk] : null
+                  return (
+                    <TableRow key={row.caseUuid} className="hover:bg-[#F8FAFC]">
+                      <TableCell>
+                        <div className="font-medium text-[#111827] break-words">{row.topic}</div>
+                        <div className="mt-1 text-xs text-[#6B7280] font-mono">{row.caseNo}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-[#111827]">{row.patentType}</div>
+                        <div className="text-xs text-[#6B7280]">{row.field}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          {row.stageLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={status.className}>{status.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {risk ? <span className={`text-sm font-medium ${risk.className}`}>{risk.label}</span> : <span className="text-sm text-[#9CA3AF]">-</span>}
+                      </TableCell>
+                      <TableCell>
+                        {row.score !== null ? <span className="font-medium">{row.score}</span> : <span className="text-[#9CA3AF]">-</span>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-[#111827]">{row.engineer}</div>
+                        <div className="text-xs text-[#6B7280]">{row.applicant}</div>
+                      </TableCell>
+                      <TableCell className="text-sm text-[#6B7280]">{row.updateTime}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" className="h-8 gap-1.5 bg-[#2563EB] hover:bg-[#1D4ED8]" onClick={() => openCase(row)}>
+                            进入当前阶段
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" title="更多 M06 操作">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openCase(row, "m06-p02-decomposition")}>
+                                <Brain className="mr-2 h-4 w-4" />
+                                交底书解构
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openCase(row, "m06-p03-ai-inspection")}>
+                                <Search className="mr-2 h-4 w-4" />
+                                AI初检
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openCase(row, "m06-p10-quality")}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                质量控制
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openCase(row, "m06-p11-package")}>
+                                <Package className="mr-2 h-4 w-4" />
+                                数据包
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openCase(row, "m06-p13-version")}>
+                                <FileClock className="mr-2 h-4 w-4" />
+                                版本日志
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-          {/* 分页 */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[#E5E7EB]">
-            <div className="text-sm text-[#6B7280]">
-              显示 1-{filteredData.length} 条，共 128 条
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled>
-                <ChevronLeft size={14} className="mr-1" />
-                上一页
-              </Button>
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" className="w-8 h-8 p-0 bg-[#2563EB] text-white border-[#2563EB]">1</Button>
-                <Button variant="outline" size="sm" className="w-8 h-8 p-0">2</Button>
-                <Button variant="outline" size="sm" className="w-8 h-8 p-0">3</Button>
-                <span className="px-1 text-[#9CA3AF]">...</span>
-                <Button variant="outline" size="sm" className="w-8 h-8 p-0">22</Button>
-              </div>
-              <Button variant="outline" size="sm">
-                下一页
-                <ChevronRight size={14} className="ml-1" />
-              </Button>
-            </div>
+        <div className="flex items-center justify-between border-t px-4 py-3 text-sm text-[#6B7280]">
+          <span>共 {filteredRows.length} 条，当前第 {page} / {totalPages} 页</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              上一页
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              disabled={page >= totalPages}
+            >
+              下一页
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

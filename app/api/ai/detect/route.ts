@@ -1,8 +1,6 @@
 /**
- * AI 率检测
+ * AI generated-text probability endpoint.
  * POST /api/ai/detect
- * 请求体：{ content: string }
- * 响应：{ aiRate: 0-100, flaggedSections: [{ start, end, suggestion }] }
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,9 +8,8 @@ import { success, error } from '@/lib/api-response'
 import { requireAuth } from '@/middleware/auth'
 import { aiService } from '@/lib/ai-service'
 
-// 将文本分段（每段约 500 字符）
-function splitIntoSections(text: string, maxLength: number = 500): string[] {
-  const sentences = text.split(/([。！？\.\!\?]+)/)
+function splitIntoSections(text: string, maxLength = 500): string[] {
+  const sentences = text.split(/([。！？.!?]+)/)
   const sections: string[] = []
   let current = ''
 
@@ -25,6 +22,7 @@ function splitIntoSections(text: string, maxLength: number = 500): string[] {
       current += sentence
     }
   }
+
   if (current.trim()) sections.push(current.trim())
   return sections
 }
@@ -37,25 +35,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { content } = body
 
-    if (!content || content.length < 50) {
+    if (!content || typeof content !== 'string' || content.trim().length < 50) {
       return NextResponse.json(error('文本长度不能少于50字符', 400))
     }
 
-    // 1. 整体 AI 率检测
-    const overallPrompt = `请判断以下文本是由 AI 生成的概率（0-100），只返回一个 0-100 的数字：
-
-${content.substring(0, 2000)}`
-
-    const overallResult = await aiService.generate(overallPrompt, {
-      system: '你是一个文本分析专家。请判断给定文本是由 AI 生成还是人类撰写的概率。只返回一个 0-100 的整数数字，不要解释。',
-      temperature: 0.1,
-    })
-
-    // 解析 AI 率
-    const aiRateMatch = overallResult.text.match(/(\d+)/)
-    const aiRate = aiRateMatch ? Math.min(100, Math.max(0, parseInt(aiRateMatch[1]))) : 50
-
-    // 2. 分段检测（只检测较长的文本）
+    const overall = await aiService.detectAI(content)
     const flaggedSections: Array<{
       start: number
       end: number
@@ -68,44 +52,32 @@ ${content.substring(0, 2000)}`
       let currentIndex = 0
 
       for (const section of sections.slice(0, 5)) {
-        // 最多检测 5 段
-        const sectionPrompt = `判断以下文本由 AI 生成的概率（0-100），只返回数字：
-${section}`
-
-        try {
-          const sectionResult = await aiService.generate(sectionPrompt, {
-            system: '判断文本是否由 AI 生成。只返回 0-100 的整数数字。',
-            temperature: 0.1,
+        const sectionResult = await aiService.detectAI(section)
+        if (sectionResult.aiRate > 60) {
+          flaggedSections.push({
+            start: currentIndex,
+            end: currentIndex + section.length,
+            aiProbability: sectionResult.aiRate,
+            suggestion:
+              sectionResult.aiRate > 80
+                ? '高度疑似 AI 生成，建议结合真实研发细节重写'
+                : '可能包含 AI 生成内容，建议补充人工事实和实验细节',
           })
-          const sectionRateMatch = sectionResult.text.match(/(\d+)/)
-          const sectionRate = sectionRateMatch ? parseInt(sectionRateMatch[1]) : 50
-
-          if (sectionRate > 60) {
-            flaggedSections.push({
-              start: currentIndex,
-              end: currentIndex + section.length,
-              aiProbability: sectionRate,
-              suggestion: sectionRate > 80 ? '高度疑似 AI 生成，建议重写' : '可能包含 AI 生成内容，建议检查',
-            })
-          }
-        } catch {
-          // 单段检测失败，跳过
         }
-
         currentIndex += section.length
       }
     }
 
     return NextResponse.json(
       success({
-        aiRate,
+        aiRate: overall.aiRate,
         flaggedSections,
         overallAssessment:
-          aiRate > 80
+          overall.aiRate > 80
             ? '高度疑似 AI 生成'
-            : aiRate > 50
+            : overall.aiRate > 50
               ? '可能包含 AI 生成内容'
-              : '大概率人类撰写',
+              : '大概率为人工改写或事实性文本',
       })
     )
   } catch (err: any) {

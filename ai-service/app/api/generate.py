@@ -1,13 +1,14 @@
 """LLM 生成接口"""
 
 import httpx
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter()
 
-OLLAMA_URL = "http://localhost:11434"
-DEFAULT_MODEL = "qwen2.5:7b"
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
 
 class GenerateRequest(BaseModel):

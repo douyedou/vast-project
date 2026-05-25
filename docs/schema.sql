@@ -357,3 +357,66 @@ CREATE TRIGGER update_patent_docs_updated_at BEFORE UPDATE ON patent_documents
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON reviews
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- M06 知识库分块与交底书版本增强
+-- ============================================================
+
+ALTER TABLE knowledge_base
+    ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb,
+    ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS source_url TEXT,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_base_content_hash
+    ON knowledge_base(content_hash);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    knowledge_id UUID REFERENCES knowledge_base(id) ON DELETE CASCADE,
+    chunk_index INTEGER NOT NULL,
+    field VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(1024),
+    source VARCHAR(500),
+    source_type VARCHAR(50) CHECK (source_type IN ('patent', 'paper', 'template', 'other')) DEFAULT 'other',
+    source_url TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    content_hash VARCHAR(64) NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_field ON knowledge_chunks(field);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source_type ON knowledge_chunks(source_type);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_knowledge_id ON knowledge_chunks(knowledge_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops);
+
+CREATE TABLE IF NOT EXISTS knowledge_ingest_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'running',
+    source VARCHAR(500),
+    total_documents INTEGER DEFAULT 0,
+    total_chunks INTEGER DEFAULT 0,
+    total_embeddings INTEGER DEFAULT 0,
+    error_message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    finished_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS disclosure_document_versions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    document_id UUID REFERENCES disclosure_documents(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    action VARCHAR(100) NOT NULL DEFAULT 'save',
+    content_json JSONB NOT NULL,
+    ai_suggestions JSONB DEFAULT '{}'::jsonb,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_disclosure_versions_document_id ON disclosure_document_versions(document_id);
+CREATE INDEX IF NOT EXISTS idx_disclosure_versions_created_at ON disclosure_document_versions(created_at DESC);

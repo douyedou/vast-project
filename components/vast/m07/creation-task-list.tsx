@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { StatusBadge } from "@/components/vast/status-badge"
+import { StatusBadge, type DisclosureStatus } from "@/components/vast/status-badge"
 import {
   Search,
   Filter,
@@ -52,7 +52,7 @@ const typeMap: Record<string, string> = {
   design: "外观设计",
 }
 
-const statusVariantMap: Record<string, string> = {
+const statusVariantMap: Record<string, DisclosureStatus> = {
   draft: "presale",
   assigning: "presale",
   searching: "processing",

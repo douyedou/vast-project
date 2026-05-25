@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { StatusBadge } from "@/components/vast/status-badge"
+import { StatusBadge, type DisclosureStatus } from "@/components/vast/status-badge"
 import {
   Search,
   Filter,
@@ -169,8 +169,8 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status
 }
 
-const getStatusVariant = (status: string) => {
-  const map: Record<string, string> = {
+const getStatusVariant = (status: string): DisclosureStatus => {
+  const map: Record<string, DisclosureStatus> = {
     "parsing": "waiting-order",
     "inspection": "initial-review",
     "supplement": "processing",

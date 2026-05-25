@@ -19,6 +19,7 @@ import {
 interface SupplementModeSelectionProps {
   onBack?: () => void
   onSelectMode?: (mode: "fast" | "normal" | "expert") => void
+  onGoInspection?: () => void
   aiInspectionComplete?: boolean
 }
 
@@ -77,6 +78,7 @@ const modes = [
 export function SupplementModeSelection({
   onBack,
   onSelectMode,
+  onGoInspection,
   aiInspectionComplete = true,
 }: SupplementModeSelectionProps) {
   return (
@@ -105,7 +107,7 @@ export function SupplementModeSelection({
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-800">
               建议先完成专利初检，以便AI更好地提供补充建议和风险提示。
-              <Button variant="link" className="px-1 h-auto text-yellow-800 underline">
+              <Button variant="link" className="px-1 h-auto text-yellow-800 underline" onClick={onGoInspection}>
                 前往初检
               </Button>
             </AlertDescription>
@@ -166,7 +168,14 @@ export function SupplementModeSelection({
                   </div>
 
                   {/* Action Button */}
-                  <Button className="w-full mt-4" variant={mode.id === "expert" ? "default" : "outline"}>
+                  <Button
+                    className="w-full mt-4"
+                    variant={mode.id === "expert" ? "default" : "outline"}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelectMode?.(mode.id)
+                    }}
+                  >
                     选择{mode.label}
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>

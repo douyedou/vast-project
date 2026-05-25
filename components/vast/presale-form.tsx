@@ -23,7 +23,7 @@ interface PresaleFormProps {
 type UploadedFile = { name: string; size: string; type: string; actualFile?: File }
 
 export function PresaleForm({ onBack }: PresaleFormProps) {
-  const [formData, setFormData] = useState(() => {
+  const [formData, setFormData] = useState<Record<string, string>>(() => {
     // 页面加载时自动恢复本地草稿
     if (typeof window !== "undefined") {
       const draft = localStorage.getItem("presale_draft")
