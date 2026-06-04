@@ -44,19 +44,16 @@ export async function GET(request: NextRequest) {
         (SELECT COUNT(*)
          FROM patent_documents pd
          JOIN cases c2 ON c2.id = pd.case_id
-         WHERE c2.engineer_id = $1 AND pd.type = 'spec' AND pd.status = 'draft') AS spec_writing,
-
-        (SELECT COUNT(DISTINCT pd2.case_id)
-         FROM patent_documents pd2
-         JOIN cases c3 ON c3.id = pd2.case_id
-         WHERE c3.engineer_id = $1 AND pd2.type = 'claim') AS claims_writing,
+         WHERE c2.engineer_id = $1 AND pd.type = 'spec' AND pd.status IN ('draft','writing')) AS spec_writing,
 
         (SELECT COUNT(*)
-         FROM reviews r
-         JOIN cases c4 ON c4.id = r.case_id
-         WHERE c4.engineer_id = $1 AND r.result = 'reject') AS returned_count,
+         FROM patent_documents pd2
+         JOIN cases c3 ON c3.id = pd2.case_id
+         WHERE c3.engineer_id = $1 AND pd2.type = 'claim' AND pd2.status IN ('draft','writing')) AS claims_writing,
 
-        (SELECT COUNT(*) FROM cases c5 WHERE c5.engineer_id = $1 AND c5.status IN ('reviewing','pending_submit')) AS review_pending
+        (SELECT COUNT(*) FROM cases c4 WHERE c4.engineer_id = $1 AND c4.status = 'returned') AS returned_count,
+
+        (SELECT COUNT(*) FROM cases c5 WHERE c5.engineer_id = $1 AND c5.status = 'writingcheck') AS review_pending
 
     `, [engineerId])
 
@@ -80,55 +77,46 @@ export async function GET(request: NextRequest) {
         c.status,
         c.priority,
         c.deadline,
-
-        MAX(pd.duplicate_rate) as duplicate_rate,
-        MAX(pd.disclosure_coverage) as disclosure_coverage,
-        MAX(pd.support_rate) as support_rate
+        c.created_at
 
       FROM cases c
 
-      LEFT JOIN patent_documents pd
-        ON pd.case_id = c.id
-
       WHERE c.engineer_id = $1
-
-      GROUP BY
-        c.id,
-        c.title,
-        c.type,
-        c.status,
-        c.priority,
-        c.deadline
+        AND c.status = 'writing'
 
       ORDER BY c.updated_at DESC
       LIMIT 10
     `, [engineerId])
+
+    const now = new Date()
+    const twoYearMs = 2 * 365 * 24 * 60 * 60 * 1000
 
     const myTasks = tasksResult.rows.map((row) => ({
       id: row.id,
       name: row.title,
       type: row.type,
       status: row.status,
-      // 前端展示用的中文状态文案
       statusLabel: (() => {
         const map: Record<string, string> = {
-          writing: "说明书生成中",
-          spec: "说明书生成中",
-          claims: "权利要求撰写中",
-          claims_writing: "权利要求撰写中",
-          returned: "退回修改",
-          reviewing: "全文件复核中",
-          pending_submit: "待提交审核",
+          writing: '创作中',
+          writingcheck: '待提交审核',
+          returned: '退回修改',
+          reviewing: '审核中',
         }
-
         return map[row.status] || row.status
       })(),
-      priority: row.priority,
-      // 格式化为 YYYY-MM-DD，前端期望简短日期字符串
-      deadline: row.deadline ? new Date(row.deadline).toISOString().slice(0, 10) : null,
-      duplicate_rate: row.duplicate_rate,
-      disclosure_coverage: row.disclosure_coverage,
-      support_rate: row.support_rate,
+      deadline: (() => {
+        const dl = row.deadline ? new Date(row.deadline) : new Date(new Date(row.created_at).getTime() + twoYearMs)
+        return dl.toISOString().slice(0, 10)
+      })(),
+      priority: (() => {
+        const dl = row.deadline ? new Date(row.deadline) : new Date(new Date(row.created_at).getTime() + twoYearMs)
+        const daysLeft = Math.ceil((dl.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+        if (daysLeft < 0) return 'overdue'
+        if (daysLeft <= 7) return 'urgent'
+        if (daysLeft <= 30) return 'high'
+        return 'normal'
+      })(),
     }))
 
     // =========================
@@ -137,60 +125,33 @@ export async function GET(request: NextRequest) {
 
     const riskResult = await query(`
       SELECT
-
-        COUNT(*) FILTER (
-          WHERE disclosure_coverage < 70
-        ) as disclosure_not_covered,
-
-        COUNT(*) FILTER (
-          WHERE support_rate < 70
-        ) as unsupported_claims,
-
-        COUNT(*) FILTER (
-          WHERE ai_rate > 80
+        (SELECT COUNT(*) FROM patent_documents pd
+         JOIN cases c ON c.id = pd.case_id
+         WHERE c.engineer_id = $1 AND pd.type = 'spec' AND pd.ai_rate >= 30
         ) as ai_too_high,
 
-        COUNT(*) FILTER (
-          WHERE duplicate_rate > 30
-        ) as duplicate_too_high
+        (SELECT COUNT(*) FROM patent_documents pd
+         JOIN cases c ON c.id = pd.case_id
+         WHERE c.engineer_id = $1 AND pd.type = 'spec' AND pd.duplicate_rate >= 30
+        ) as duplicate_too_high,
 
-      FROM patent_documents pd
+        (SELECT COUNT(*) FROM patent_documents pd
+         JOIN cases c ON c.id = pd.case_id
+         WHERE c.engineer_id = $1 AND pd.type = 'spec' AND pd.disclosure_coverage < 80
+        ) as coverage_low,
 
-      JOIN cases c
-        ON c.id = pd.case_id
-
-      WHERE c.engineer_id = $1
+        (SELECT COUNT(*) FROM patent_documents pd
+         JOIN cases c ON c.id = pd.case_id
+         WHERE c.engineer_id = $1 AND pd.type = 'claim' AND pd.claim_number > 0
+           AND pd.support_status IN ('unsupported','weak')
+        ) as unsupported_claims
     `, [engineerId])
 
     const risks = [
-      {
-        type: "交底未覆盖",
-        count: Number(
-          riskResult.rows[0].disclosure_not_covered
-        ),
-        severity: "warning",
-      },
-      {
-        type: "权利要求无支持",
-        count: Number(
-          riskResult.rows[0].unsupported_claims
-        ),
-        severity: "error",
-      },
-      {
-        type: "AI相似性超标",
-        count: Number(
-          riskResult.rows[0].ai_too_high
-        ),
-        severity: "error",
-      },
-      {
-        type: "查重率异常",
-        count: Number(
-          riskResult.rows[0].duplicate_too_high
-        ),
-        severity: "warning",
-      },
+      { type: "AI相似性超标", count: Number(riskResult.rows[0].ai_too_high || 0), severity: "error" as const },
+      { type: "查重率过高", count: Number(riskResult.rows[0].duplicate_too_high || 0), severity: "warning" as const },
+      { type: "交底覆盖率不足", count: Number(riskResult.rows[0].coverage_low || 0), severity: "warning" as const },
+      { type: "权利要求无支持", count: Number(riskResult.rows[0].unsupported_claims || 0), severity: "error" as const },
     ]
 
     // =========================

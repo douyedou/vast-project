@@ -219,7 +219,7 @@ export function SpecDraftPage({ caseId, onBack, onEdit }: SpecDraftPageProps) {
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data.code === 200) setCasesList(data.data.list || [])
+        if (data.code === 200) setCasesList((data.data.list || []).filter((c: any) => c.status === 'writing'))
       })
       .finally(() => setCasesLoading(false))
   }, [activeCaseId])

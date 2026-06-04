@@ -94,7 +94,7 @@ export function CreationTaskList({ onViewDetail, onEdit }: CreationTaskListProps
       .then((r) => r.json())
       .then((data) => {
         if (data.code === 200) {
-          setTasks(data.data.list || [])
+          setTasks((data.data.list || []).filter((c: any) => c.status === 'writing'))
         }
       })
       .finally(() => setLoading(false))

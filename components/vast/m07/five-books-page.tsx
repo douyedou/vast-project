@@ -12,7 +12,6 @@ import {
   Image,
   BookOpen,
   Download,
-  Send,
   CheckCircle,
   AlertCircle,
   Search,
@@ -22,7 +21,7 @@ import {
 
 interface FiveBooksPageProps {
   onBack: () => void
-  onSubmit: () => void
+  onCaseSelect?: (caseId: string) => void
   caseId?: string | null
 }
 
@@ -42,7 +41,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Image,
 }
 
-export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveBooksPageProps) {
+export function FiveBooksPage({ onBack, onCaseSelect, caseId: initialCaseId }: FiveBooksPageProps) {
   const [activeCaseId, setActiveCaseId] = useState<string | null>(initialCaseId ?? null)
   const [activeCaseTitle, setActiveCaseTitle] = useState("")
   const [casesList, setCasesList] = useState<{ id: string; case_id: string; title: string; type: string }[]>([])
@@ -56,8 +55,6 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
   const [selectedBook, setSelectedBook] = useState<string | null>(null)
   const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null)
   const [showFigurePicker, setShowFigurePicker] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
 
   useEffect(() => {
     if (activeCaseId) return
@@ -67,8 +64,26 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => { if (data.code === 200) setCasesList(data.data.list || []) })
+      .then(data => {
+        if (data.code === 200) setCasesList((data.data.list || []).filter((c: any) => c.status === 'writing'))
+      })
       .finally(() => setCasesLoading(false))
+  }, [activeCaseId])
+
+  // 初始化：如果已有 caseId，验证状态后加载数据
+  useEffect(() => {
+    if (!activeCaseId) return
+    const token = localStorage.getItem("vast_token")
+    fetch(`/api/cases/${activeCaseId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.code === 200 && d.data?.status === 'writing') {
+          setActiveCaseTitle(d.data.title)
+          checkFiveBooks(activeCaseId)
+        } else {
+          setActiveCaseId(null) // 状态不对，回选择器
+        }
+      })
   }, [activeCaseId])
 
   const checkFiveBooks = async (caseId: string) => {
@@ -95,45 +110,18 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
   const handleSelectCase = (id: string, title: string) => {
     setActiveCaseId(id)
     setActiveCaseTitle(title)
-    // 先查案件状态
+    onCaseSelect?.(id)
     const token = localStorage.getItem("vast_token")
     fetch(`/api/cases/${id}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        if (data?.code === 200 && (data.data?.status === 'writingcheck' || data.data?.status === 'reviewing')) {
-          setSubmitted(true)
-        } else {
-          setSubmitted(false)
-          checkFiveBooks(id)
-        }
+        checkFiveBooks(id)
       })
   }
 
   const handleDownload = (documentId: string) => {
     const token = localStorage.getItem("vast_token")
     window.open(`/api/onlyoffice/document/${documentId}?token=${token}`, "_blank")
-  }
-
-  const handleSubmit = async () => {
-    if (!activeCaseId || !allReady) return
-    if (!window.confirm("确认提交审核？\n\n提交后：\n- 案件进入撰写审核状态\n- 所有文档将被锁定，不可再编辑\n- 审核员将收到审核任务")) return
-    setSubmitting(true)
-    try {
-      const token = localStorage.getItem("vast_token")
-      const res = await fetch("/api/m07/five-books/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ caseId: activeCaseId }),
-      })
-      const data = await res.json()
-      if (data?.code === 200) {
-        setSubmitted(true)
-      } else {
-        alert(data?.message || "提交失败")
-      }
-    } finally {
-      setSubmitting(false)
-    }
   }
 
   const handleSelectFigure = async (imageId: string) => {
@@ -152,28 +140,7 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
     }
   }
 
-  // ---- submitted view ----
-  if (submitted) {
-    return (
-      <div className="h-[calc(100vh-56px)] flex items-center justify-center bg-[#F5F7FA]">
-        <Card className="w-[480px]">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-[#111827] mb-2">提交审核成功</h2>
-            <p className="text-sm text-[#6B7280] mb-1">案件已进入撰写审核状态</p>
-            <p className="text-xs text-[#9CA3AF] mb-6">所有文档已锁定，审核员将进行审核</p>
-            <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={() => { setSubmitted(false); setActiveCaseId(null); setBooks([]) }}>
-                返回案例列表
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
+  // ---- submitted view (removed) ----
 
   // ---- case picker ----
   if (!activeCaseId) {
@@ -218,7 +185,7 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
     <div className="h-[calc(100vh-56px)] flex flex-col bg-[#F5F7FA]">
       <div className="h-14 px-4 bg-white border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => { setActiveCaseId(null); setBooks([]); setSubmitted(false) }}>
+          <Button variant="ghost" size="sm" onClick={() => { setActiveCaseId(null); setBooks([]) }}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             返回案例选择
           </Button>
@@ -232,13 +199,6 @@ export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveB
           <Button variant="outline" onClick={() => checkFiveBooks(activeCaseId!)} disabled={checking}>
             {checking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             刷新
-          </Button>
-          <Button onClick={handleSubmit} disabled={!allReady || submitting} className="bg-green-600 hover:bg-green-700 text-white">
-            {submitting ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />提交中...</>
-            ) : (
-              <><Send className="h-4 w-4 mr-2" />提交审核</>
-            )}
           </Button>
         </div>
       </div>

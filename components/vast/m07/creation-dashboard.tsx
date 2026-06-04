@@ -26,6 +26,7 @@ interface DashboardStat {
   value: number
   icon: typeof FileText
   color: string
+  navigateTo: string
 }
 
 interface DashboardTask {
@@ -51,11 +52,11 @@ interface DashboardActivity {
 }
 
 const initialStats: DashboardStat[] = [
-  { label: "待创作", value: 0, icon: FileText, color: "#9CA3AF" },
-  { label: "说明书处理中", value: 0, icon: Edit3, color: "#2F80ED" },
-  { label: "权利要求处理中", value: 0, icon: FileCheck, color: "#06B6D4" },
-  { label: "退回修改", value: 0, icon: RotateCcw, color: "#EF4444" },
-  { label: "待提交审核", value: 0, icon: Send, color: "#10B981" },
+  { label: "待创作", value: 0, icon: FileText, color: "#9CA3AF", navigateTo: "m07-list" },
+  { label: "说明书处理中", value: 0, icon: Edit3, color: "#2F80ED", navigateTo: "m07-spec-draft" },
+  { label: "权利要求处理中", value: 0, icon: FileCheck, color: "#06B6D4", navigateTo: "m07-claims" },
+  { label: "退回修改", value: 0, icon: RotateCcw, color: "#EF4444", navigateTo: "m07-list" },
+  { label: "待提交审核", value: 0, icon: Send, color: "#10B981", navigateTo: "m07-submit" },
 ]
 
 const initialMyTasks: DashboardTask[] = []
@@ -83,6 +84,8 @@ const getStatusVariant = (status: string) => {
 
 const getPriorityLabel = (priority: string) => {
   switch (priority) {
+    case "overdue":
+      return { label: "逾期", color: "bg-red-100 text-red-700" }
     case "urgent":
       return { label: "紧急", color: "bg-red-100 text-red-700" }
     case "high":
@@ -102,18 +105,19 @@ export function CreationDashboard({ onNavigate }: CreationDashboardProps) {
     const token = localStorage.getItem('vast_token')
     const headers = token ? { Authorization: `Bearer ${token}` } : undefined
 
-    fetch('/api/m07/dashboard', { headers })
-      .then((res) => res.json())
-      .then((res) => {
+    const fetchData = () => {
+      fetch('/api/m07/dashboard', { headers })
+        .then((res) => res.json())
+        .then((res) => {
         if (!res || !res.success) return
         const data = res.data || {}
 
         setStats([
-          { label: "待创作", value: data.stats?.pending ?? 0, icon: FileText, color: "#9CA3AF" },
-          { label: "说明书处理中", value: data.stats?.specWriting ?? 0, icon: Edit3, color: "#2F80ED" },
-          { label: "权利要求处理中", value: data.stats?.claimsWriting ?? 0, icon: FileCheck, color: "#06B6D4" },
-          { label: "退回修改", value: data.stats?.returned ?? 0, icon: RotateCcw, color: "#EF4444" },
-          { label: "待提交审核", value: data.stats?.reviewPending ?? 0, icon: Send, color: "#10B981" },
+          { label: "待创作", value: data.stats?.pending ?? 0, icon: FileText, color: "#9CA3AF", navigateTo: "m07-list" },
+          { label: "说明书处理中", value: data.stats?.specWriting ?? 0, icon: Edit3, color: "#2F80ED", navigateTo: "m07-spec-draft" },
+          { label: "权利要求处理中", value: data.stats?.claimsWriting ?? 0, icon: FileCheck, color: "#06B6D4", navigateTo: "m07-claims" },
+          { label: "退回修改", value: data.stats?.returned ?? 0, icon: RotateCcw, color: "#EF4444", navigateTo: "m07-list" },
+          { label: "待提交审核", value: data.stats?.reviewPending ?? 0, icon: Send, color: "#10B981", navigateTo: "m07-submit" },
         ])
 
         setMyTasks((data.myTasks || []).map((t: any) => ({
@@ -130,6 +134,14 @@ export function CreationDashboard({ onNavigate }: CreationDashboardProps) {
         setRecentActivities(data.recentActivities || [])
       })
       .catch((err) => console.error('fetch dashboard failed', err))
+    }
+
+    fetchData()
+
+    // 页面重新获得焦点时刷新
+    const onFocus = () => fetchData()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   return (
@@ -160,7 +172,7 @@ export function CreationDashboard({ onNavigate }: CreationDashboardProps) {
             <Card
               key={stat.label}
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => onNavigate("m07-list")}
+              onClick={() => onNavigate(stat.navigateTo)}
             >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">

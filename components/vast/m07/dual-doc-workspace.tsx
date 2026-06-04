@@ -34,6 +34,7 @@ import {
 
 interface DualDocWorkspaceProps {
   onBack: () => void
+  onCaseSelect?: (caseId: string) => void
   caseId?: string | null
 }
 
@@ -146,7 +147,7 @@ const getStatusBadge = (status: string | boolean) => {
   )
 }
 
-export function DualDocWorkspace({ onBack, caseId: initialCaseId }: DualDocWorkspaceProps) {
+export function DualDocWorkspace({ onBack, onCaseSelect, caseId: initialCaseId }: DualDocWorkspaceProps) {
   // 案例选择
   const [activeCaseId, setActiveCaseId] = useState<string | null>(initialCaseId ?? null)
   const [activeCaseTitle, setActiveCaseTitle] = useState("")
@@ -163,7 +164,7 @@ export function DualDocWorkspace({ onBack, caseId: initialCaseId }: DualDocWorks
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => { if (data.code === 200) setCasesList(data.data.list || []) })
+      .then(data => { if (data.code === 200) setCasesList((data.data.list || []).filter((c: any) => c.status === 'writing')) })
       .finally(() => setCasesLoading(false))
   }, [activeCaseId])
   const [showUncoveredOnly, setShowUncoveredOnly] = useState(false)
@@ -354,6 +355,7 @@ export function DualDocWorkspace({ onBack, caseId: initialCaseId }: DualDocWorks
   const handleSelectCase = (id: string, title: string) => {
     setActiveCaseId(id)
     setActiveCaseTitle(title)
+    onCaseSelect?.(id)
     setDocsMap({})
   }
 

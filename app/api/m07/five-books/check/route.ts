@@ -25,20 +25,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const caseId = searchParams.get('caseId')
+    const includeLocked = searchParams.get('includeLocked') === 'true'
     if (!caseId) return NextResponse.json(error('缺少 caseId 参数', 400), { status: 400 })
 
-    // 说明书: type='spec', status='writing', content 非空
+    const statusFilter = includeLocked ? "IN ('writing','ai_checking')" : "= 'writing'"
+
+    // 说明书
     const specResult = await query(
       `SELECT id FROM patent_documents
-       WHERE case_id = $1 AND type = 'spec' AND status = 'writing' AND content != ''
+       WHERE case_id = $1 AND type = 'spec' AND status ${statusFilter} AND content != ''
        LIMIT 1`,
       [caseId]
     )
 
-    // 权利要求书: type='claim', status='writing', claim_number=0 (汇总 docx)
+    // 权利要求书
     const claimsResult = await query(
       `SELECT id FROM patent_documents
-       WHERE case_id = $1 AND type = 'claim' AND status = 'writing' AND claim_number = 0
+       WHERE case_id = $1 AND type = 'claim' AND status ${statusFilter} AND claim_number = 0
        LIMIT 1`,
       [caseId]
     )

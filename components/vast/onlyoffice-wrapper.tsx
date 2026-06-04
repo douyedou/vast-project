@@ -29,7 +29,9 @@ interface OnlyOfficeConfig {
 
 declare global {
   interface Window {
-    DocsAPI?: any
+    DocsAPI?: {
+      DocEditor: new (id: string, config: any) => any
+    }
   }
 }
 

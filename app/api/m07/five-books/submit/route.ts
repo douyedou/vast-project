@@ -1,12 +1,13 @@
 /**
- * 五书提交审核
+ * 五书完整性校验
  * POST /api/m07/five-books/submit
+ * 仅校验，不修改状态。锁定由 full-review/lock 负责。
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { requireAuth } from '@/middleware/auth'
-import { query, transaction } from '@/lib/db'
+import { query } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,6 @@ export async function POST(request: NextRequest) {
     const { caseId } = body || {}
     if (!caseId) return NextResponse.json(error('缺少 caseId 参数', 400), { status: 400 })
 
-    // 检查五书是否齐全（复用 check 逻辑）
     const check = await Promise.all([
       query(`SELECT 1 FROM patent_documents WHERE case_id = $1 AND type = 'spec' AND status = 'writing' AND content != '' LIMIT 1`, [caseId]),
       query(`SELECT 1 FROM patent_documents WHERE case_id = $1 AND type = 'claim' AND status = 'writing' AND claim_number = 0 LIMIT 1`, [caseId]),
@@ -33,32 +33,10 @@ export async function POST(request: NextRequest) {
     if (check[3].rows.length === 0) missing.push('附图说明')
     if (check[4].rows.length === 0) missing.push('摘要附图')
 
-    if (missing.length > 0) {
-      return NextResponse.json(error(`五书不齐全，缺少：${missing.join('、')}`, 400), { status: 400 })
-    }
-
-    // 事务：更新案件状态 + 文档状态
-    await transaction(async (client) => {
-      await client.query(
-        `UPDATE cases SET status = 'writingcheck', updated_at = NOW() WHERE id = $1`,
-        [caseId]
-      )
-      await client.query(
-        `UPDATE patent_documents SET status = 'ai_checking', updated_at = NOW()
-         WHERE case_id = $1 AND type IN ('spec', 'claim', 'abstract', 'drawings') AND status = 'writing'`,
-        [caseId]
-      )
-      // 创建审核记录
-      await client.query(
-        `INSERT INTO reviews (case_id, reviewer_id, result)
-         VALUES ($1, (SELECT id FROM users WHERE role = 'reviewer' LIMIT 1), 'pending')`,
-        [caseId]
-      )
-    })
-
-    return NextResponse.json(success({ caseId }, '提交审核成功'))
+    const allReady = missing.length === 0
+    return NextResponse.json(success({ caseId, allReady, missing }, allReady ? '五书齐全' : `缺少: ${missing.join('、')}`))
   } catch (err: any) {
-    console.error('提交审核失败:', err)
-    return NextResponse.json(error('提交审核失败', 500), { status: 500 })
+    console.error('五书校验失败:', err)
+    return NextResponse.json(error('校验失败', 500), { status: 500 })
   }
 }
