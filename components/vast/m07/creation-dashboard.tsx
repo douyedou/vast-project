@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/vast/status-badge"
@@ -20,63 +21,48 @@ interface CreationDashboardProps {
   onNavigate: (page: string) => void
 }
 
-const stats = [
-  { label: "待创作", value: 12, icon: FileText, color: "#9CA3AF" },
-  { label: "说明书处理中", value: 8, icon: Edit3, color: "#2F80ED" },
-  { label: "权利要求处理中", value: 5, icon: FileCheck, color: "#06B6D4" },
-  { label: "退回修改", value: 3, icon: RotateCcw, color: "#EF4444" },
-  { label: "待提交审核", value: 6, icon: Send, color: "#10B981" },
+interface DashboardStat {
+  label: string
+  value: number
+  icon: typeof FileText
+  color: string
+}
+
+interface DashboardTask {
+  id: string
+  name: string
+  type: string
+  status: string
+  deadline: string | null
+  priority: string
+}
+
+interface DashboardRisk {
+  type: string
+  count: number
+  severity: "warning" | "error" | "normal"
+}
+
+interface DashboardActivity {
+  time: string
+  action: string
+  target: string
+  user: string
+}
+
+const initialStats: DashboardStat[] = [
+  { label: "待创作", value: 0, icon: FileText, color: "#9CA3AF" },
+  { label: "说明书处理中", value: 0, icon: Edit3, color: "#2F80ED" },
+  { label: "权利要求处理中", value: 0, icon: FileCheck, color: "#06B6D4" },
+  { label: "退回修改", value: 0, icon: RotateCcw, color: "#EF4444" },
+  { label: "待提交审核", value: 0, icon: Send, color: "#10B981" },
 ]
 
-const myTasks = [
-  {
-    id: "1",
-    name: "智能温控系统发明专利",
-    type: "发明",
-    status: "说明书生成中",
-    deadline: "2024-01-20",
-    priority: "normal",
-  },
-  {
-    id: "2",
-    name: "新型散热装置实用新型",
-    type: "实用新型",
-    status: "权利要求撰写中",
-    deadline: "2024-01-18",
-    priority: "urgent",
-  },
-  {
-    id: "3",
-    name: "数据处理方法发明专利",
-    type: "发明",
-    status: "退回修改",
-    deadline: "2024-01-15",
-    priority: "high",
-  },
-  {
-    id: "4",
-    name: "移动终端结构设计",
-    type: "实用新型",
-    status: "全文件复核中",
-    deadline: "2024-01-22",
-    priority: "normal",
-  },
-]
+const initialMyTasks: DashboardTask[] = []
 
-const risks = [
-  { type: "交底未覆盖", count: 2, severity: "warning" },
-  { type: "权利要求无支持", count: 1, severity: "error" },
-  { type: "AI相似性超标", count: 1, severity: "error" },
-  { type: "查重率异常", count: 0, severity: "normal" },
-]
+const initialRisks: DashboardRisk[] = []
 
-const recentActivities = [
-  { time: "10:30", action: "说明书 AI 初稿生成完成", target: "智能温控系统", user: "系统" },
-  { time: "10:15", action: "权利要求保存", target: "新型散热装置", user: "张工" },
-  { time: "09:45", action: "全文件复核通过", target: "数据处理方法", user: "李工" },
-  { time: "09:30", action: "提交 M08 审核", target: "移动终端结构", user: "张工" },
-  { time: "09:00", action: "M08 审核退回", target: "数据处理方法", user: "审核员" },
-]
+const initialRecentActivities: DashboardActivity[] = []
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -107,6 +93,45 @@ const getPriorityLabel = (priority: string) => {
 }
 
 export function CreationDashboard({ onNavigate }: CreationDashboardProps) {
+  const [stats, setStats] = useState(initialStats)
+  const [myTasks, setMyTasks] = useState(initialMyTasks)
+  const [risks, setRisks] = useState(initialRisks)
+  const [recentActivities, setRecentActivities] = useState(initialRecentActivities)
+
+  useEffect(() => {
+    const token = localStorage.getItem('vast_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+
+    fetch('/api/m07/dashboard', { headers })
+      .then((res) => res.json())
+      .then((res) => {
+        if (!res || !res.success) return
+        const data = res.data || {}
+
+        setStats([
+          { label: "待创作", value: data.stats?.pending ?? 0, icon: FileText, color: "#9CA3AF" },
+          { label: "说明书处理中", value: data.stats?.specWriting ?? 0, icon: Edit3, color: "#2F80ED" },
+          { label: "权利要求处理中", value: data.stats?.claimsWriting ?? 0, icon: FileCheck, color: "#06B6D4" },
+          { label: "退回修改", value: data.stats?.returned ?? 0, icon: RotateCcw, color: "#EF4444" },
+          { label: "待提交审核", value: data.stats?.reviewPending ?? 0, icon: Send, color: "#10B981" },
+        ])
+
+        setMyTasks((data.myTasks || []).map((t: any) => ({
+          id: String(t.id),
+          name: t.name || t.title || '',
+          type: t.type || '',
+          // 优先使用后端 statusLabel，再退回到原始 status
+          status: t.statusLabel || t.status || '',
+          deadline: t.deadline || null,
+          priority: t.priority || 'normal',
+        })))
+
+        setRisks(data.risks || [])
+        setRecentActivities(data.recentActivities || [])
+      })
+      .catch((err) => console.error('fetch dashboard failed', err))
+  }, [])
+
   return (
     <div className="p-6 space-y-6">
       {/* 页面标题 */}
@@ -174,7 +199,7 @@ export function CreationDashboard({ onNavigate }: CreationDashboardProps) {
                   <div
                     key={task.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-[#F9FAFB] hover:bg-[#F3F4F6] cursor-pointer transition-colors"
-                    onClick={() => onNavigate("m07-detail")}
+                    onClick={() => onNavigate("m07-workspace")}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded bg-[#EAF4FF] flex items-center justify-center">

@@ -32,9 +32,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(error('缺少 documentId 参数', 400))
     }
 
-    // 查询文档信息
+    // 查询文档信息（含状态）
     const docResult = await query(
-      'SELECT id, type, content, version FROM patent_documents WHERE id = $1',
+      'SELECT id, type, content, version, status FROM patent_documents WHERE id = $1',
       [documentId]
     )
 
@@ -44,22 +44,23 @@ export async function GET(request: NextRequest) {
 
     const doc = docResult.rows[0]
 
+    // 已提交审核 → 只读
+    const isLocked = doc.status === 'ai_checking'
+
     // 文档类型映射
     const fileTypeMap: Record<string, string> = {
       spec: 'docx',
-      claims: 'docx',
       abstract: 'docx',
       drawings: 'docx',
     }
     const fileType = fileTypeMap[doc.type] || 'docx'
 
-    // 生成文档 key（用于 OnlyOffice 缓存控制）
-    const key = `${documentId}-v${doc.version}-${Date.now()}`
+    // 生成文档 key（同一版本同一 key，实现协同编辑）
+    const key = `${documentId}-v${doc.version}`
 
     // 文档标题
     const titleMap: Record<string, string> = {
       spec: '说明书',
-      claims: '权利要求书',
       abstract: '摘要',
       drawings: '附图说明',
     }
@@ -77,18 +78,28 @@ export async function GET(request: NextRequest) {
         key,
         title: `${title}.docx`,
         url: documentUrl,
+        permissions: {
+          edit: !isLocked,
+          download: true,
+        },
       },
       editorConfig: {
         callbackUrl,
         lang: 'zh-CN',
-        mode: 'edit',
+        mode: isLocked ? 'view' : 'edit',
+        // 协同编辑配置
+        coEditing: {
+          mode: 'fast',
+          change: true,
+        },
         user: {
           id: user.id,
           name: user.name || user.username,
         },
-        permissions: {
-          edit: true,
-          download: true,
+        customization: {
+          forcesave: true,           // 强制自动保存
+          compactToolbar: false,
+          toolbarHideFileName: false,
         },
       },
       documentType: 'word',

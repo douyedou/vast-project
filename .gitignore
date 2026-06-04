@@ -35,3 +35,6 @@ __pycache__/
 .gitignore
 .claude/
 
+
+# pnpm store
+.pnpm-store/

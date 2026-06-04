@@ -32,6 +32,7 @@ export interface UploadResult {
   mimeType: string
   size: number
   path: string
+  fields?: Record<string, string>
 }
 
 export interface UploadOptions {
@@ -75,6 +76,11 @@ export async function handleUpload(
     
     let uploadedFile: UploadResult | null = null
     let hasFile = false
+    const fields: Record<string, string> = {}
+
+    busboy.on('field', (fieldname, value) => {
+      fields[fieldname] = value
+    })
 
     busboy.on('file', (fieldname, file, info) => {
       hasFile = true
@@ -140,6 +146,7 @@ export async function handleUpload(
           mimeType,
           size: fileSize,
           path: filePath,
+          fields,
         }
       })
 

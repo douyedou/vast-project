@@ -73,6 +73,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   filing:         { label: "待立案",     className: "bg-[#E6FFFB] text-[#13C2C2] border-[#87E8DE]" },
   disclosure_pending: { label: "待交底", className: "bg-pink-50 text-pink-600 border-pink-200" },
   writing:        { label: "撰写中",     className: "bg-blue-50 text-blue-600 border-blue-200" },
+  writingcheck:   { label: "撰写审核",   className: "bg-teal-50 text-teal-600 border-teal-200" },
   reviewing:      { label: "审核中",     className: "bg-purple-50 text-purple-600 border-purple-200" },
   completed:      { label: "已立案",     className: "bg-[#F6FFED] text-[#52C41A] border-[#B7EB8F]" },
   rejected:       { label: "不立案归档", className: "bg-[#F5F5F5] text-[#8C8C8C] border-[#D9D9D9]" },

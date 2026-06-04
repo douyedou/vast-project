@@ -215,6 +215,11 @@ export default function Home() {
     setCurrentPage("m07-detail")
   }
 
+  const handleM07Edit = (id: string) => {
+    setSelectedCaseId(id)
+    setCurrentPage("m07-workspace")
+  }
+
   const handleViewCaseDetail = (id: string) => {
     setSelectedCaseId(id)
     setCurrentPage("m09-case-detail")
@@ -229,6 +234,7 @@ export default function Home() {
   }
 
   const handleM07Back = () => {
+    setSelectedCaseId(null)
     setCurrentPage("m07-dashboard")
   }
 
@@ -406,18 +412,19 @@ export default function Home() {
       case "m07-dashboard":
         return <CreationDashboard onNavigate={handleNavigate} />
       case "m07-list":
-        return <CreationTaskList onViewDetail={handleM07ViewDetail} />
+        return <CreationTaskList onViewDetail={handleM07ViewDetail} onEdit={handleM07Edit} />
       case "m07-workspace":
-        return <DualDocWorkspace onBack={handleM07Back} />
+        return <DualDocWorkspace caseId={selectedCaseId} onBack={handleM07Back} />
       case "m07-spec-draft":
         return (
           <SpecDraftPage
+            caseId={selectedCaseId}
             onBack={handleM07Back}
-            onEdit={() => setCurrentPage("m07-workspace")}
+            onEdit={(caseId) => { setSelectedCaseId(caseId); setCurrentPage("m07-workspace") }}
           />
         )
       case "m07-claims":
-        return <ClaimsWritingPage onBack={handleM07Back} />
+        return <ClaimsWritingPage caseId={selectedCaseId} onBack={handleM07Back} onEdit={(caseId) => { setSelectedCaseId(caseId); setCurrentPage("m07-workspace") }} />
       case "m07-review":
         return (
           <FullReviewPage
@@ -428,6 +435,7 @@ export default function Home() {
       case "m07-five-books":
         return (
           <FiveBooksPage
+            caseId={selectedCaseId}
             onBack={handleM07Back}
             onSubmit={() => setCurrentPage("m07-submit")}
           />

@@ -55,10 +55,10 @@ M05 立案模块剩余页面 + 几个跨模块公共组件。
 
 | 优先级 | 组件 | 文件 | 对应 API | 难度 |
 |--------|------|------|----------|------|
-| P0 | 撰写仪表盘 | `m07/creation-dashboard.tsx` | `GET /api/cases`（统计） | ⭐⭐ |
-| P0 | 说明书起草页 | `m07/spec-draft-page.tsx` | `GET/POST /api/cases/:id/documents` | ⭐⭐⭐ |
-| P0 | 权利要求书 | `m07/claims-writing-page.tsx` | `GET/POST /api/cases/:id/documents` | ⭐⭐⭐ |
-| P0 | OnlyOffice 编辑器 | `m07/onlyoffice-editor.tsx` | OnlyOffice API | ⭐⭐⭐⭐ |
+| P0 | 撰写仪表盘 | `m07/creation-dashboard.tsx` | `GET app\api\m07\dashboard\route.ts`（统计） | ⭐⭐ |完成
+| P0 | 说明书起草页 | `m07/spec-draft-page.tsx` | `GET/POST /api/cases/:id/documents` | ⭐⭐⭐ |完成
+| P0 | 权利要求书 | `m07/claims-writing-page.tsx` | `GET/POST /api/cases/:id/documents` | ⭐⭐⭐ |完成
+| P0 | OnlyOffice 编辑器 | `m07/onlyoffice-editor.tsx` | OnlyOffice API | ⭐⭐⭐⭐ |ok
 | P0 | 五书页面 | `m07/five-books-page.tsx` | `GET /api/cases/:id/documents` | ⭐⭐⭐ |
 | P0 | 提交审核页 | `m07/submit-m08-page.tsx` | `POST /api/reviews` | ⭐⭐ |
 | P1 | 双文档工作台 | `m07/dual-doc-workspace.tsx` | `GET /api/cases/:id/documents` | ⭐⭐⭐ |

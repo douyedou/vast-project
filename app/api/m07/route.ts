@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { requireAuth } from '@/middleware/auth'
 import { query } from '@/lib/db'
+import { sanitizeB64Content } from '@/lib/docx'
 
 // GET /api/m07/documents
 export async function GET(request: NextRequest) {
@@ -28,7 +29,14 @@ export async function GET(request: NextRequest) {
       [caseId]
     )
 
-    return NextResponse.json(success(result.rows))
+    const rows = result.rows.map((row: any) => {
+      const sanitized = sanitizeB64Content(row.content)
+      row.content = sanitized.content
+      if (sanitized.hasDocx) row.has_docx = true
+      return row
+    })
+
+    return NextResponse.json(success(rows))
   } catch (err: any) {
     console.error('获取专利文档失败:', err)
     return NextResponse.json(error('获取专利文档失败', 500))
@@ -47,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (!caseId || !type) {
       return NextResponse.json(error('caseId 和 type 不能为空', 400))
     }
-    if (!['spec', 'claims', 'abstract', 'drawings'].includes(type)) {
+    if (!['spec', 'abstract', 'drawings'].includes(type)) {
       return NextResponse.json(error('无效的文档类型', 400))
     }
 

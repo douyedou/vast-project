@@ -5,7 +5,27 @@
  * 请求体：{ username: string, password: string }
  * 响应：{ code, data: { token, user }, message }
  */
-
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     summary: 用户登录
+ *     description: 使用用户名和密码登录并获取 JWT token。
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       "200":
+ *         description: 登录成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { query } from '@/lib/db'

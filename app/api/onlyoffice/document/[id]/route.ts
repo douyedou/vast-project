@@ -30,7 +30,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const doc = docResult.rows[0]
     const content = doc.content || ''
 
-    // 将纯文本分段生成 docx
+    // 如果已经是 OnlyOffice 保存的 docx（base64 格式），直接返回
+    if (content.startsWith('B64:')) {
+      const buf = Buffer.from(content.slice(4), 'base64')
+      return new NextResponse(new Uint8Array(buf), {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'Content-Disposition': `attachment; filename="document-${id.slice(0, 8)}.docx"`,
+        },
+      })
+    }
+
+    // 纯文本 → 生成 docx
     const paragraphs = content
       .split('\n')
       .filter((line: string) => line.trim().length > 0)
@@ -46,7 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const buffer = await Packer.toBuffer(document)
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="document-${id.slice(0, 8)}.docx"`,

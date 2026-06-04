@@ -33,6 +33,7 @@ import {
 
 interface CreationTaskListProps {
   onViewDetail: (id: string) => void
+  onEdit: (id: string) => void
 }
 
 interface CaseItem {
@@ -78,7 +79,7 @@ const statusLabelMap: Record<string, string> = {
   rejected: "已退回",
 }
 
-export function CreationTaskList({ onViewDetail }: CreationTaskListProps) {
+export function CreationTaskList({ onViewDetail, onEdit }: CreationTaskListProps) {
   const [tasks, setTasks] = useState<CaseItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchKeyword, setSearchKeyword] = useState("")
@@ -209,7 +210,12 @@ export function CreationTaskList({ onViewDetail }: CreationTaskListProps) {
                         >
                           <Eye className="h-4 w-4 text-[#6B7280]" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => onEdit(task.id)}
+                        >
                           <Edit3 className="h-4 w-4 text-[#2F80ED]" />
                         </Button>
                       </div>

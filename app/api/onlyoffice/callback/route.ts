@@ -11,6 +11,7 @@ import { query } from '@/lib/db'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log("[OnlyOffice Callback]", JSON.stringify(body).slice(0, 200))
     const { status, url, key } = body
     const { searchParams } = new URL(request.url)
     const documentId = searchParams.get('documentId')
@@ -33,13 +34,27 @@ export async function POST(request: NextRequest) {
       if (url) {
         try {
           const docResponse = await fetch(url)
-          const content = await docResponse.text()
+          const rawBuf = Buffer.from(await docResponse.arrayBuffer())
+          // 存 base64 编码的 docx 二进制
+          const content = 'B64:' + rawBuf.toString('base64')
 
           // 更新文档内容
           await query(
             `UPDATE patent_documents
              SET content = $1, version = version + 1, updated_at = NOW()
              WHERE id = $2`,
+            [content, documentId]
+          )
+
+          // 如果是 drawings 类型，同步回对应的 document_images.description
+          await query(
+            `UPDATE document_images SET description = $1
+             WHERE id = (
+               SELECT d.id FROM document_images d
+               JOIN patent_documents pd ON pd.case_id = d.case_id AND pd.type = 'drawings'
+               WHERE pd.id = $2
+               LIMIT 1
+             )`,
             [content, documentId]
           )
 
@@ -68,4 +83,45 @@ export async function POST(request: NextRequest) {
     console.error('OnlyOffice 回调处理失败:', err)
     return NextResponse.json({ error: 1, message: err.message })
   }
+}
+
+// 从 docx ZIP 中提取纯文本
+function extractDocxText(buf: Buffer): string {
+  // 找 word/document.xml 在 ZIP 中的位置
+  const docXmlMarker = Buffer.from('word/document.xml')
+  let offset = 0
+  while (offset < buf.length - docXmlMarker.length) {
+    const pos = buf.indexOf(docXmlMarker, offset)
+    if (pos === -1) break
+    // ZIP local file header: 签名(4) + 版本(2) + 标志(2) + 压缩方法(2) + ...
+    // 在文件名后面找压缩数据
+    const headerStart = pos - 30 // 回退到 local header 附近
+    // 压缩方法在偏移 8 处（从 local header 签名开始算）
+    const sigPos = buf.lastIndexOf(Buffer.from('PK\x03\x04'), pos)
+    if (sigPos === -1) { offset = pos + 1; continue }
+    const method = buf.readUInt16LE(sigPos + 8)
+    const compSize = buf.readUInt32LE(sigPos + 18)
+    const nameLen = buf.readUInt16LE(sigPos + 26)
+    const extraLen = buf.readUInt16LE(sigPos + 28)
+    const dataStart = sigPos + 30 + nameLen + extraLen
+    const dataEnd = dataStart + compSize
+
+    if (dataEnd > buf.length) break
+    const raw = buf.subarray(dataStart, dataEnd)
+
+    try {
+      const xml = method === 8
+        ? require('zlib').inflateRawSync(raw).toString('utf-8')
+        : method === 0 ? raw.toString('utf-8') : ''
+      if (xml) {
+        const texts: string[] = []
+        const re = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
+        let m
+        while ((m = re.exec(xml)) !== null) texts.push(m[1])
+        return texts.join('').trim()
+      }
+    } catch {}
+    offset = pos + 1
+  }
+  return ''
 }

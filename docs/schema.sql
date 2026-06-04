@@ -13,6 +13,8 @@
 -- ============================================================
 -- 1. 用户与权限系统（成员 B 负责）
 -- ============================================================
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -68,7 +70,7 @@ CREATE TABLE cases (
     status VARCHAR(30) NOT NULL DEFAULT 'draft' 
         CHECK (status IN (
             'draft', 'assigning', 'searching', 'confirming', 'filing',
-            'disclosure_pending', 'writing', 'reviewing', 'completed', 'rejected'
+            'disclosure_pending', 'writing', 'writingcheck', 'reviewing', 'completed', 'rejected'
         )),
     applicant_id UUID REFERENCES users(id),
     engineer_id UUID REFERENCES users(id),
@@ -82,7 +84,7 @@ CREATE TABLE cases (
 
 COMMENT ON TABLE cases IS '案件主表';
 COMMENT ON COLUMN cases.case_id IS '业务编号，如 PAT-20250101-0001';
-COMMENT ON COLUMN cases.status IS '案件状态：draft(草稿) → assigning(待分配) → searching(待检索) → confirming(待确认) → filing(待立案) → disclosure_pending(交底书补全中) → writing(撰写中) → reviewing(审核中) → completed(已完成) / rejected(已驳回)';
+COMMENT ON COLUMN cases.status IS '案件状态：draft(草稿) → assigning(待分配) → searching(待检索) → confirming(待确认) → filing(待立案) → disclosure_pending(交底书补全中) → writing(撰写中) → writingcheck(撰写审核) → reviewing(审核中) → completed(已完成) / rejected(已驳回)';
 
 CREATE TABLE case_files (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -160,18 +162,70 @@ CREATE TABLE patent_documents (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
     type VARCHAR(20) NOT NULL 
-        CHECK (type IN ('spec', 'claims', 'abstract', 'drawings')),
+        CHECK (type IN ('spec', 'abstract', 'drawings', 'claim')),
     content TEXT,
+    -- 说明书六章（仅 type='spec' 时使用）
+    tech_field TEXT,
+    background TEXT,
+    summary TEXT,
+    drawings_desc TEXT,
+    embodiment TEXT,
+    effects TEXT,
     status VARCHAR(20) DEFAULT 'draft' 
-        CHECK (status IN ('draft', 'writing', 'ai_checking', 'approved')),
+        CHECK (status IN ('draft', 'writing', 'ai_checking', 'approved', 'pending_review')),
     ai_rate INTEGER,
     version INTEGER DEFAULT 1,
+    -- 权利要求从属关系（仅 type='claim' 时使用）
+    parent_claim_id UUID REFERENCES patent_documents(id) ON DELETE RESTRICT,
+    claim_number INTEGER,
+    support_status VARCHAR(20) DEFAULT 'unchecked'
+        CHECK (support_status IN ('supported', 'weak', 'unsupported', 'unchecked')),
+    support_paragraphs TEXT[] DEFAULT '{}',
+    -- 六章节字段注释（仅 type='spec' 时使用）
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(case_id, type, claim_number)
 );
 
-COMMENT ON COLUMN patent_documents.type IS '文档类型：spec(说明书), claims(权利要求书), abstract(摘要), drawings(附图说明)';
+COMMENT ON COLUMN patent_documents.type IS '文档类型：spec(说明书), abstract(摘要), drawings(附图说明), claim(单条权利要求)';
+COMMENT ON COLUMN patent_documents.tech_field IS '技术领域章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.background IS '背景技术章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.summary IS '发明内容章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.drawings_desc IS '附图说明章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.embodiment IS '具体实施方式章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.effects IS '有益效果章节，type=spec 时使用';
+COMMENT ON COLUMN patent_documents.parent_claim_id IS '从属权利要求的父权利要求 ID（自引用外键），独权为 NULL，仅 type=claim 时有效';
+COMMENT ON COLUMN patent_documents.claim_number IS '权利要求编号，仅 type=claim 时有效；claim_number=0 为确认提交后的汇总 docx';
+COMMENT ON COLUMN patent_documents.support_status IS '说明书支持状态，仅 type=claim 时有效';
+COMMENT ON COLUMN patent_documents.support_paragraphs IS '支撑段落引用列表，仅 type=claim 时有效';
 COMMENT ON COLUMN patent_documents.ai_rate IS 'AI 生成比例，0-100';
+COMMENT ON COLUMN patent_documents.content IS '文档内容，B64: 前缀表示 docx 二进制 base64 编码';
+
+CREATE INDEX idx_patent_docs_parent ON patent_documents(parent_claim_id);
+
+CREATE TABLE document_images (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES patent_documents(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    url TEXT NOT NULL,
+    mime_type VARCHAR(100),
+    size BIGINT,
+    caption TEXT,
+    description TEXT,
+    position INTEGER DEFAULT 0,
+    section VARCHAR(50) DEFAULT 'drawings',
+    is_abstract_figure BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE document_images IS '说明书附图存储，通过 document_id 绑定说明书';
+COMMENT ON COLUMN document_images.document_id IS '所属说明书（patent_documents type=spec）';
+COMMENT ON COLUMN document_images.section IS '所属说明书章节：tech-field/background/summary/drawings/embodiment/effects';
+COMMENT ON COLUMN document_images.is_abstract_figure IS '是否为摘要附图，每个 case 仅一张';
+CREATE INDEX idx_document_images_case ON document_images(case_id);
+CREATE INDEX idx_document_images_document ON document_images(document_id);
 
 CREATE TABLE document_versions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -420,3 +474,16 @@ CREATE TABLE IF NOT EXISTS disclosure_document_versions (
 
 CREATE INDEX IF NOT EXISTS idx_disclosure_versions_document_id ON disclosure_document_versions(document_id);
 CREATE INDEX IF NOT EXISTS idx_disclosure_versions_created_at ON disclosure_document_versions(created_at DESC);
+
+ALTER TABLE cases
+ADD COLUMN deadline TIMESTAMPTZ;
+
+ALTER TABLE patent_documents
+ADD COLUMN duplicate_rate NUMERIC(5,2);
+
+ALTER TABLE patent_documents
+ADD COLUMN disclosure_coverage NUMERIC(5,2);
+
+ALTER TABLE patent_documents
+ADD COLUMN support_rate NUMERIC(5,2);
+

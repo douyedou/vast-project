@@ -1,349 +1,426 @@
-"use client"
+﻿"use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   ChevronLeft,
+  ChevronRight,
   FileText,
   FileCheck,
   Image,
   BookOpen,
   Download,
-  Eye,
-  RefreshCw,
   Send,
   CheckCircle,
-  Loader2,
   AlertCircle,
+  Search,
+  Loader2,
+  RefreshCw,
 } from "lucide-react"
 
 interface FiveBooksPageProps {
   onBack: () => void
   onSubmit: () => void
+  caseId?: string | null
 }
 
-interface BookFile {
-  id: string
-  name: string
-  icon: React.ComponentType<{ className?: string }>
-  status: "pending" | "generating" | "success" | "error"
-  pages?: number
-  size?: string
+interface BookItem {
+  key: string
+  label: string
+  icon: string
+  ready: boolean
+  documentId: string | null
+  preview?: string
 }
 
-const initialFiles: BookFile[] = [
-  { id: "spec", name: "说明书", icon: BookOpen, status: "pending" },
-  { id: "claims", name: "权利要求书", icon: FileCheck, status: "pending" },
-  { id: "abstract", name: "摘要", icon: FileText, status: "pending" },
-  { id: "drawings", name: "附图说明", icon: FileText, status: "pending" },
-  { id: "abstract-drawing", name: "摘要附图", icon: Image, status: "pending" },
-]
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  BookOpen,
+  FileCheck,
+  FileText,
+  Image,
+}
 
-export function FiveBooksPage({ onBack, onSubmit }: FiveBooksPageProps) {
-  const [files, setFiles] = useState<BookFile[]>(initialFiles)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [generated, setGenerated] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+export function FiveBooksPage({ onBack, onSubmit, caseId: initialCaseId }: FiveBooksPageProps) {
+  const [activeCaseId, setActiveCaseId] = useState<string | null>(initialCaseId ?? null)
+  const [activeCaseTitle, setActiveCaseTitle] = useState("")
+  const [casesList, setCasesList] = useState<{ id: string; case_id: string; title: string; type: string }[]>([])
+  const [casesLoading, setCasesLoading] = useState(false)
+  const [caseSearch, setCaseSearch] = useState("")
 
-  const handleGenerate = () => {
-    setIsGenerating(true)
-    setFiles(files.map((f) => ({ ...f, status: "generating" as const })))
+  const [books, setBooks] = useState<BookItem[]>([])
+  const [images, setImages] = useState<{ id: string; url: string; caption: string; position: number }[]>([])
+  const [checking, setChecking] = useState(false)
+  const [allReady, setAllReady] = useState(false)
+  const [selectedBook, setSelectedBook] = useState<string | null>(null)
+  const [selectedFigureId, setSelectedFigureId] = useState<string | null>(null)
+  const [showFigurePicker, setShowFigurePicker] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
 
-    // 模拟逐个生成
-    const fileIds = ["spec", "claims", "abstract", "drawings", "abstract-drawing"]
-    const fileSizes = ["128KB", "45KB", "8KB", "12KB", "256KB"]
-    const filePages = [15, 3, 1, 2, 1]
-
-    fileIds.forEach((id, index) => {
-      setTimeout(() => {
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === id
-              ? { ...f, status: "success" as const, pages: filePages[index], size: fileSizes[index] }
-              : f
-          )
-        )
-        if (index === fileIds.length - 1) {
-          setIsGenerating(false)
-          setGenerated(true)
-          setSelectedFile("spec")
-        }
-      }, (index + 1) * 800)
+  useEffect(() => {
+    if (activeCaseId) return
+    setCasesLoading(true)
+    const token = localStorage.getItem("vast_token")
+    fetch("/api/cases?page=1&pageSize=100", {
+      headers: { Authorization: `Bearer ${token}` },
     })
+      .then(r => r.json())
+      .then(data => { if (data.code === 200) setCasesList(data.data.list || []) })
+      .finally(() => setCasesLoading(false))
+  }, [activeCaseId])
+
+  const checkFiveBooks = async (caseId: string) => {
+    setChecking(true)
+    try {
+      const token = localStorage.getItem("vast_token")
+      const res = await fetch(`/api/m07/five-books/check?caseId=${encodeURIComponent(caseId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data?.code === 200) {
+        setBooks(data.data.books || [])
+        setImages(data.data.images || [])
+        setAllReady(data.data.allReady)
+        // Auto-select first ready doc book for preview
+        const firstDoc = (data.data.books || []).find((b: BookItem) => b.ready && b.documentId)
+        setSelectedBook(firstDoc?.key || null)
+      }
+    } finally {
+      setChecking(false)
+    }
   }
 
-  const allSuccess = files.every((f) => f.status === "success")
+  const handleSelectCase = (id: string, title: string) => {
+    setActiveCaseId(id)
+    setActiveCaseTitle(title)
+    // 先查案件状态
+    const token = localStorage.getItem("vast_token")
+    fetch(`/api/cases/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.code === 200 && (data.data?.status === 'writingcheck' || data.data?.status === 'reviewing')) {
+          setSubmitted(true)
+        } else {
+          setSubmitted(false)
+          checkFiveBooks(id)
+        }
+      })
+  }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "generating":
-        return <Loader2 className="h-4 w-4 text-[#2F80ED] animate-spin" />
-      case "success":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "error":
-        return <AlertCircle className="h-4 w-4 text-red-600" />
-      default:
-        return <div className="w-4 h-4 rounded-full border-2 border-[#D1D5DB]" />
+  const handleDownload = (documentId: string) => {
+    const token = localStorage.getItem("vast_token")
+    window.open(`/api/onlyoffice/document/${documentId}?token=${token}`, "_blank")
+  }
+
+  const handleSubmit = async () => {
+    if (!activeCaseId || !allReady) return
+    if (!window.confirm("确认提交审核？\n\n提交后：\n- 案件进入撰写审核状态\n- 所有文档将被锁定，不可再编辑\n- 审核员将收到审核任务")) return
+    setSubmitting(true)
+    try {
+      const token = localStorage.getItem("vast_token")
+      const res = await fetch("/api/m07/five-books/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ caseId: activeCaseId }),
+      })
+      const data = await res.json()
+      if (data?.code === 200) {
+        setSubmitted(true)
+      } else {
+        alert(data?.message || "提交失败")
+      }
+    } finally {
+      setSubmitting(false)
     }
+  }
+
+  const handleSelectFigure = async (imageId: string) => {
+    if (!activeCaseId) return
+    const token = localStorage.getItem("vast_token")
+    const res = await fetch("/api/m07/five-books/select-figure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ caseId: activeCaseId, imageId }),
+    })
+    const data = await res.json()
+    if (data?.code === 200) {
+      setBooks(prev => prev.map(b => b.key === "abstractFigure" ? { ...b, ready: true, documentId: imageId } : b))
+      setAllReady(books.every(b => b.key === "abstractFigure" ? true : b.ready))
+      setShowFigurePicker(false)
+    }
+  }
+
+  // ---- submitted view ----
+  if (submitted) {
+    return (
+      <div className="h-[calc(100vh-56px)] flex items-center justify-center bg-[#F5F7FA]">
+        <Card className="w-[480px]">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-[#111827] mb-2">提交审核成功</h2>
+            <p className="text-sm text-[#6B7280] mb-1">案件已进入撰写审核状态</p>
+            <p className="text-xs text-[#9CA3AF] mb-6">所有文档已锁定，审核员将进行审核</p>
+            <div className="flex gap-3 justify-center">
+              <Button variant="outline" onClick={() => { setSubmitted(false); setActiveCaseId(null); setBooks([]) }}>
+                返回案例列表
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // ---- case picker ----
+  if (!activeCaseId) {
+    const filtered = casesList.filter(c =>
+      !caseSearch || c.title.includes(caseSearch) || c.case_id.includes(caseSearch)
+    )
+    const typeLabel = (t: string) => t === "invention" ? "发明" : t === "utility" ? "实用新型" : "外观设计"
+    return (
+      <div className="h-[calc(100vh-56px)] flex flex-col bg-[#F5F7FA]">
+        <div className="h-14 px-4 bg-white border-b flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ChevronLeft className="h-4 w-4 mr-1" />返回
+          </Button>
+          <h1 className="text-sm font-semibold text-[#111827]">选择五书案例</h1>
+        </div>
+        <div className="px-4 py-3">
+          <div className="relative w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
+            <input className="w-full pl-9 pr-3 py-2 rounded border text-sm" placeholder="搜索案件..." value={caseSearch} onChange={e => setCaseSearch(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto px-4 pb-4">
+          {casesLoading ? (
+            <div className="flex items-center justify-center py-20 text-[#9CA3AF]">加载中...</div>
+          ) : (
+            <div className="grid gap-2">
+              {filtered.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-4 rounded-lg border bg-white hover:border-[#2F80ED] cursor-pointer"
+                  onClick={() => handleSelectCase(c.id, c.title)}>
+                  <div><div className="text-sm font-medium">{c.title}</div><div className="text-xs text-[#9CA3AF]">{c.case_id} · {typeLabel(c.type)}</div></div>
+                  <ChevronRight className="h-5 w-5 text-[#9CA3AF]" />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="h-[calc(100vh-56px)] flex flex-col bg-[#F5F7FA]">
-      {/* 顶部操作栏 */}
       <div className="h-14 px-4 bg-white border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onBack}>
+          <Button variant="ghost" size="sm" onClick={() => { setActiveCaseId(null); setBooks([]); setSubmitted(false) }}>
             <ChevronLeft className="h-4 w-4 mr-1" />
-            返回
+            返回案例选择
           </Button>
           <div className="h-6 w-px bg-border" />
           <div>
             <h1 className="text-sm font-semibold text-[#111827]">五书生成</h1>
-            <p className="text-xs text-[#9CA3AF]">智能温控系统发明专利</p>
+            <p className="text-xs text-[#9CA3AF]">{activeCaseTitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!generated ? (
-            <Button onClick={handleGenerate} disabled={isGenerating}>
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <FileText className="h-4 w-4 mr-2" />
-                  生成五书
-                </>
-              )}
-            </Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleGenerate}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                重新生成
-              </Button>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                全部导出
-              </Button>
-              <Button onClick={onSubmit} disabled={!allSuccess}>
-                <Send className="h-4 w-4 mr-2" />
-                提交审核
-              </Button>
-            </>
-          )}
+          <Button variant="outline" onClick={() => checkFiveBooks(activeCaseId!)} disabled={checking}>
+            {checking ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            刷新
+          </Button>
+          <Button onClick={handleSubmit} disabled={!allReady || submitting} className="bg-green-600 hover:bg-green-700 text-white">
+            {submitting ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />提交中...</>
+            ) : (
+              <><Send className="h-4 w-4 mr-2" />提交审核</>
+            )}
+          </Button>
         </div>
       </div>
 
-      {/* 主内容区 */}
       <div className="flex-1 flex overflow-hidden p-4 gap-4">
-        {/* 左侧：文件生成清单 */}
         <Card className="w-80 flex-shrink-0">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">文件生成清单</CardTitle>
+            <CardTitle className="text-base">五书文件清单</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {files.map((file) => {
-                const Icon = file.icon
-                return (
-                  <div
-                    key={file.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                      selectedFile === file.id
-                        ? "bg-[#EAF4FF] border border-[#2F80ED]"
-                        : "bg-[#F9FAFB] hover:bg-[#F3F4F6] border border-transparent"
-                    }`}
-                    onClick={() => file.status === "success" && setSelectedFile(file.id)}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-border">
-                      <Icon className="h-5 w-5 text-[#6B7280]" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-[#111827]">{file.name}</div>
-                      {file.status === "success" && (
-                        <div className="text-xs text-[#9CA3AF] mt-0.5">
-                          {file.pages} 页 · {file.size}
+            {checking ? (
+              <div className="flex items-center justify-center py-12 text-[#9CA3AF]">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />检查中...
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {books.map(book => {
+                  const Icon = iconMap[book.icon] || FileText
+                  const isSelected = selectedBook === book.key
+                  const isFigure = book.key === "abstractFigure"
+                  return (
+                    <div
+                      key={book.key}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? "bg-[#EAF4FF] border border-[#2F80ED]" : book.ready ? "bg-green-50 border border-green-200 hover:bg-green-100" : "bg-[#F9FAFB] border border-transparent hover:bg-[#F3F4F6]"}`}
+                      onClick={() => {
+                        if (isFigure && !book.ready) { setShowFigurePicker(true) }
+                        else { setSelectedBook(book.key) }
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-border">
+                        <Icon className="h-5 w-5 text-[#6B7280]" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-[#111827]">{book.label}</div>
+                        <div className="text-xs mt-0.5">
+                          {book.ready ? (
+                            <span className="text-green-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" />已生成</span>
+                          ) : isFigure ? (
+                            <span className="text-[#2F80ED] flex items-center gap-1 cursor-pointer">点击选择附图</span>
+                          ) : (
+                            <span className="text-[#9CA3AF] flex items-center gap-1"><AlertCircle className="h-3 w-3" />未就绪</span>
+                          )}
                         </div>
+                      </div>
+                      {book.ready && book.documentId && !isFigure && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); handleDownload(book.documentId!) }} title="下载 docx">
+                          <Download className="h-4 w-4 text-[#2F80ED]" />
+                        </Button>
                       )}
-                      {file.status === "generating" && (
-                        <div className="text-xs text-[#2F80ED] mt-0.5">正在生成...</div>
+                      {book.ready && isFigure && (
+                        <span className="text-xs text-[#9CA3AF]"><CheckCircle className="h-3 w-3 text-green-600 inline" /></span>
                       )}
                     </div>
-                    {getStatusIcon(file.status)}
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
 
-            {generated && allSuccess && (
+            {/* 摘要附图选择器 */}
+            {showFigurePicker && (
+              <div className="mt-4 p-3 rounded-lg border border-[#2F80ED] bg-white">
+                <div className="text-sm font-medium text-[#111827] mb-2">选择摘要附图</div>
+                {images.length === 0 ? (
+                  <div className="text-xs text-[#9CA3AF] py-4 text-center">暂无附图，请先在双文档工作台上传</div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2 max-h-64 overflow-auto">
+                      {images.map(img => (
+                        <div
+                          key={img.id}
+                          className={`p-2 rounded border cursor-pointer transition-colors ${selectedFigureId === img.id ? "border-[#2F80ED] bg-[#EAF4FF]" : "border-border hover:border-[#2F80ED]"}`}
+                          onClick={() => setSelectedFigureId(img.id)}
+                        >
+                          <img src={img.url} alt={img.caption} className="h-20 w-full object-cover rounded mb-1" />
+                          <div className="text-xs text-[#6B7280] truncate">{img.caption}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button size="sm" variant="outline" onClick={() => { setShowFigurePicker(false); setSelectedFigureId(null) }}>取消</Button>
+                      <Button size="sm" onClick={() => {
+                        if (selectedFigureId) handleSelectFigure(selectedFigureId)
+                      }} disabled={!selectedFigureId}>
+                        确认选择
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {allReady ? (
               <div className="mt-4 p-3 rounded-lg bg-green-50 border border-green-200">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-700">五书文件生成完成</span>
+                  <span className="text-sm text-green-700">五书齐全，可以提交审核</span>
+                </div>
+              </div>
+            ) : books.length > 0 && (
+              <div className="mt-4 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5" />
+                  <div>
+                    <span className="text-sm text-orange-700">未满足提交条件</span>
+                    <div className="text-xs text-orange-600 mt-1">
+                      缺少：{books.filter(b => !b.ready).map(b => b.label).join('、')}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* 右侧：文件预览 */}
-        <Card className="flex-1 flex flex-col">
-          <CardHeader className="pb-3 border-b border-border">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">
-                {selectedFile
-                  ? files.find((f) => f.id === selectedFile)?.name + " 预览"
-                  : "文件预览"}
-              </CardTitle>
-              {selectedFile && (
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-2" />
-                    全屏预览
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Download className="h-4 w-4 mr-2" />
-                    下载
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 p-0 overflow-hidden">
-            {!generated ? (
+        <Card className="flex-1 overflow-hidden">
+          <CardContent className="h-full p-0">
+            {!selectedBook ? (
               <div className="h-full flex items-center justify-center text-[#9CA3AF]">
                 <div className="text-center">
                   <FileText className="h-12 w-12 mx-auto mb-3 text-[#D1D5DB]" />
-                  <p>点击"生成五书"开始生成专利申请文件</p>
+                  <p>选择左侧文件查看详情</p>
                 </div>
               </div>
-            ) : !selectedFile ? (
-              <div className="h-full flex items-center justify-center text-[#9CA3AF]">
-                <div className="text-center">
-                  <Eye className="h-12 w-12 mx-auto mb-3 text-[#D1D5DB]" />
-                  <p>选择左侧文件进行预览</p>
-                </div>
+            ) : selectedBook === "abstractFigure" ? (
+              <div className="w-full h-full flex flex-col p-6">
+                {(() => {
+                  const fig = books.find(b => b.key === "abstractFigure")
+                  const img = images.find(i => i.id === fig?.documentId)
+                  return (
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-border mb-4">
+                        <Image className="h-5 w-5 text-[#2F80ED]" />
+                      </div>
+                      <h3 className="text-base font-semibold text-[#111827] mb-2">摘要附图</h3>
+                      {img ? (
+                        <>
+                          <span className="text-green-600 text-xs flex items-center gap-1 mb-3"><CheckCircle className="h-3 w-3" />已选择</span>
+                          <img src={img.url} alt={img.caption} className="max-h-[60vh] max-w-full rounded-lg border border-border shadow-sm" />
+                          <p className="text-sm text-[#6B7280] mt-3">{img.caption}</p>
+                        </>
+                      ) : (
+                        <div className="text-center">
+                          <p className="text-sm text-[#6B7280] mb-4">尚未选择摘要附图</p>
+                          <Button variant="outline" onClick={() => setShowFigurePicker(true)}>选择附图</Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ) : (
-              <ScrollArea className="h-full">
-                <div className="p-6">
-                  {selectedFile === "spec" && (
-                    <div className="prose prose-sm max-w-none">
-                      <h1 className="text-xl font-bold text-center mb-6">说 明 书</h1>
-                      <h2 className="text-lg font-semibold">智能温控系统</h2>
-
-                      <h3 className="text-base font-medium mt-6">技术领域</h3>
-                      <p className="text-[#374151]">
-                        [0001]
-                        本发明涉及智能控制技术领域，尤其涉及一种基于人工智能的温度控制系统及方法。
-                      </p>
-
-                      <h3 className="text-base font-medium mt-6">背景技术</h3>
-                      <p className="text-[#374151]">
-                        [0002]
-                        现有的温度控制系统通常采用简单的阈值控制方式，当温度超过或低于设定阈值时，系统才会启动制冷或制热设备。
-                      </p>
-                      <p className="text-[#374151]">
-                        [0003] 这种控制方式存在以下技术问题：1、响应滞后；2、能源浪费；3、缺乏预测能力。
-                      </p>
-
-                      <h3 className="text-base font-medium mt-6">发明内容</h3>
-                      <p className="text-[#374151]">
-                        [0004]
-                        为解决上述技术问题，本发明提供一种智能温控系统，包括：传感器模块、AI处理单元、执行机构和反馈回路。
-                      </p>
-
-                      <h3 className="text-base font-medium mt-6">附图说明</h3>
-                      <p className="text-[#374151]">[0005] 图1是本发明实施例提供的智能温控系统的结构框图；</p>
-                      <p className="text-[#374151]">[0006] 图2是本发明实施例提供的AI处理单元的内部结构示意图；</p>
-
-                      <h3 className="text-base font-medium mt-6">具体实施方式</h3>
-                      <p className="text-[#374151]">
-                        [0007]
-                        下面将结合本发明实施例中的附图，对本发明实施例中的技术方案进行清楚、完整地描述。
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedFile === "claims" && (
-                    <div className="prose prose-sm max-w-none">
-                      <h1 className="text-xl font-bold text-center mb-6">权 利 要 求 书</h1>
-
-                      <p className="text-[#374151] mb-4">
-                        1. 一种智能温控系统，其特征在于，包括：
-                      </p>
-                      <p className="text-[#374151] ml-4 mb-2">
-                        传感器模块，用于采集环境温度、湿度、光照强度等多维环境参数；
-                      </p>
-                      <p className="text-[#374151] ml-4 mb-2">
-                        AI处理单元，接收所述传感器模块采集的数据，并基于深度学习模型进行分析处理，预测温度变化趋势，生成控制指令；
-                      </p>
-                      <p className="text-[#374151] ml-4 mb-2">
-                        执行机构，根据所述AI处理单元的控制指令，执行相应的温度调节操作；
-                      </p>
-                      <p className="text-[#374151] ml-4 mb-4">
-                        反馈回路，用于将执行结果反馈至所述AI处理单元，实现闭环控制。
-                      </p>
-
-                      <p className="text-[#374151] mb-4">
-                        2.
-                        根据权利要求1所述的智能温控系统，其特征在于，所述AI处理单元采用LSTM神经网络模型。
-                      </p>
-
-                      <p className="text-[#374151] mb-4">
-                        3.
-                        根据权利要求2所述的智能温控系统，其特征在于，所述隐藏层包含多个LSTM单元，用于处理时序数据。
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedFile === "abstract" && (
-                    <div className="prose prose-sm max-w-none">
-                      <h1 className="text-xl font-bold text-center mb-6">摘 要</h1>
-
-                      <p className="text-[#374151]">
-                        本发明公开了一种智能温控系统，包括传感器模块、AI处理单元、执行机构和反馈回路。传感器模块用于采集环境温度、湿度、光照强度等多维环境参数；AI处理单元接收传感器模块采集的数据，并基于深度学习模型进行分析处理，预测温度变化趋势；执行机构根据AI处理单元的控制指令执行温度调节操作；反馈回路用于将执行结果反馈至AI处理单元。本发明通过AI处理单元的深度学习模型预测温度变化趋势，实现提前调控，显著提升用户舒适度，相比传统方案节能约20%-30%。
-                      </p>
-                    </div>
-                  )}
-
-                  {selectedFile === "drawings" && (
-                    <div className="prose prose-sm max-w-none">
-                      <h1 className="text-xl font-bold text-center mb-6">附 图 说 明</h1>
-
-                      <p className="text-[#374151] mb-4">图1是本发明实施例提供的智能温控系统的结构框图；</p>
-                      <p className="text-[#374151] mb-4">
-                        图2是本发明实施例提供的AI处理单元的内部结构示意图；
-                      </p>
-                      <p className="text-[#374151] mb-4">图3是本发明实施例提供的控制方法的流程图；</p>
-                      <p className="text-[#374151] mb-4">
-                        图4是本发明实施例提供的深度学习模型的网络结构图。
-                      </p>
-
-                      <h3 className="text-base font-medium mt-6">附图标记说明：</h3>
-                      <p className="text-[#374151]">100-传感器模块；101-温度传感器；102-湿度传感器；103-光照传感器；</p>
-                      <p className="text-[#374151]">200-AI处理单元；201-输入层；202-隐藏层；203-输出层；</p>
-                      <p className="text-[#374151]">300-执行机构；400-反馈回路。</p>
-                    </div>
-                  )}
-
-                  {selectedFile === "abstract-drawing" && (
-                    <div className="prose prose-sm max-w-none">
-                      <h1 className="text-xl font-bold text-center mb-6">摘 要 附 图</h1>
-                      <div className="flex items-center justify-center p-8 bg-[#F9FAFB] rounded-lg border border-border">
-                        <div className="text-center">
-                          <Image className="h-16 w-16 mx-auto mb-4 text-[#D1D5DB]" />
-                          <p className="text-sm text-[#6B7280]">图1：智能温控系统结构框图</p>
+              <div className="w-full h-full flex flex-col p-6">
+                {(() => {
+                  const book = books.find(b => b.key === selectedBook)
+                  const Icon = book ? iconMap[book.icon] || FileText : FileText
+                  return (
+                    <>
+                      <div className="flex items-center gap-4 mb-4 pb-4 border-b border-border">
+                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border border-border">
+                          <Icon className="h-5 w-5 text-[#2F80ED]" />
                         </div>
+                        <div className="flex-1">
+                          <h3 className="text-base font-semibold text-[#111827]">{book?.label}</h3>
+                          {book?.ready ? (
+                            <span className="text-green-600 text-xs flex items-center gap-1"><CheckCircle className="h-3 w-3" />已就绪</span>
+                          ) : (
+                            <span className="text-[#9CA3AF] text-xs flex items-center gap-1"><AlertCircle className="h-3 w-3" />未就绪</span>
+                          )}
+                        </div>
+                        {book?.ready && book.documentId && (
+                          <Button variant="outline" size="sm" onClick={() => handleDownload(book.documentId!)}>
+                            <Download className="h-4 w-4 mr-1" />下载 docx
+                          </Button>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
+                      <ScrollArea className="flex-1 min-h-0">
+                        <pre className="text-sm text-[#374151] whitespace-pre-wrap font-sans leading-relaxed">{book?.preview || "暂无预览内容"}</pre>
+                      </ScrollArea>
+                    </>
+                  )
+                })()}
+              </div>
             )}
           </CardContent>
         </Card>

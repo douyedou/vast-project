@@ -4,9 +4,10 @@
 -- 向量数据请运行: npx tsx scripts/embed-knowledge-base.ts
 -- ============================================================
 
--- cases: 8 条记录
+-- cases: 9 条记录
 INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('02e947c6-c585-4b5f-b127-58e0ff25cbb2', 'PAT-20260517-0001', '智能温控系统发明专利', 'invention', 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', NULL, NULL, '一种基于AI的智能温控系统', 'high', '2026-05-17T03:45:53.726Z', '2026-05-17T03:45:53.726Z');
-INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('c78fc3fc-2f17-41f9-a113-9c1f721550af', 'PAT-20260517-0002', '智能温控系统发明专利', 'invention', 'assigning', '53472e7d-b8b1-4ece-ac6a-5b33da933248', 'eed9a9d8-6fa1-41c6-8e18-35b42062f087', NULL, '一种基于AI的智能温控系统', 'high', '2026-05-17T03:48:37.949Z', '2026-05-17T03:48:39.971Z');
+INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('c78fc3fc-2f17-41f9-a113-9c1f721550af', 'PAT-20260517-0002', '智能温控系统发明专利', 'invention', 'writing', '53472e7d-b8b1-4ece-ac6a-5b33da933248', 'eed9a9d8-6fa1-41c6-8e18-35b42062f087', NULL, '一种基于AI的智能温控系统', 'high', '2026-05-17T03:48:37.949Z', '2026-05-17T03:48:39.971Z');
+INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('f1a2b3c4-d5e6-47f8-9a0b-1c2d3e4f5a6b', 'PAT-20260517-0003', '智能照明控制系统发明专利', 'invention', 'writing', '53472e7d-b8b1-4ece-ac6a-5b33da933248', 'eed9a9d8-6fa1-41c6-8e18-35b42062f087', NULL, '一种基于传感器的智能照明系统', 'high', '2026-05-17T03:50:00.000Z', '2026-05-17T03:50:00.000Z');
 INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('4d8eced9-7f93-4bc8-8a7b-b23749d2dc32', 'PAT-ENT-1779092518135-39', '一种新型半轴装配用吊具', 'utility', 'completed', NULL, NULL, NULL, '企业提供的真实专利案例，领域：机械', 'normal', '2026-05-18T08:21:58.136Z', '2026-05-18T08:21:58.136Z');
 INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('523aea0c-da59-4055-8909-d77e3bef4d47', 'PAT-ENT-1779092518940-679', '一种用于检测ABS传感器夹持拉脱力的测试试验台', 'invention', 'completed', NULL, NULL, NULL, '企业提供的真实专利案例，领域：机械', 'normal', '2026-05-18T08:21:58.940Z', '2026-05-18T08:21:58.940Z');
 INSERT INTO cases (id, case_id, title, type, status, applicant_id, engineer_id, reviewer_id, description, priority, created_at, updated_at) VALUES ('06f2893a-979d-49ad-98e8-0adb6db60f47', 'PAT-ENT-1779092519099-416', '生物化学：一种血液灌流器用改性聚苯乙烯吸附树脂及其制备方法-发明', 'invention', 'completed', NULL, NULL, NULL, '企业提供的真实专利案例，领域：其他', 'normal', '2026-05-18T08:21:59.100Z', '2026-05-18T08:21:59.100Z');
@@ -20,10 +21,11 @@ INSERT INTO case_files (id, case_id, filename, original_name, url, mime_type, si
 INSERT INTO case_files (id, case_id, filename, original_name, url, mime_type, size, created_at) VALUES ('b327eeb5-5d99-42c3-9336-ecb8d0cbb0e1', '4847ad8f-33b9-4680-a698-ad0dfa0b2cc3', '89eb9055-bb59-4640-ad37-9ad6897ad9e4.docx', 'test.docx', '/uploads/cases/4847ad8f-33b9-4680-a698-ad0dfa0b2cc3/89eb9055-bb59-4640-ad37-9ad6897ad9e4.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '13779', '2026-05-18T11:36:36.163Z');
 INSERT INTO case_files (id, case_id, filename, original_name, url, mime_type, size, created_at) VALUES ('bf35287f-1406-4ddd-ae38-0efbccb4f785', '4847ad8f-33b9-4680-a698-ad0dfa0b2cc3', 'fb51c09c-6370-427c-926a-9bba2741d77e.jpg', 'æåç­¾åå¯ç¨.jpg', '/uploads/cases/4847ad8f-33b9-4680-a698-ad0dfa0b2cc3/fb51c09c-6370-427c-926a-9bba2741d77e.jpg', 'image/jpeg', '4809', '2026-05-18T11:36:36.207Z');
 
--- case_status_history: 5 条记录
+-- case_status_history: 6 条记录
 INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('288c5d4e-a23b-45d5-a29e-c5a05bf672c5', '02e947c6-c585-4b5f-b127-58e0ff25cbb2', NULL, 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '案件创建', '2026-05-17T03:45:53.748Z');
 INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('24f84d41-21f8-4eca-81f1-dbd112ce0d99', 'c78fc3fc-2f17-41f9-a113-9c1f721550af', NULL, 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '案件创建', '2026-05-17T03:48:37.974Z');
 INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('116802d5-2e1b-4958-8eb1-bd0d0a8e988d', 'c78fc3fc-2f17-41f9-a113-9c1f721550af', 'draft', 'assigning', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '状态更新', '2026-05-17T03:48:39.978Z');
+INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('1f2e3d4c-5b6a-47f8-9e0d-1c2b3a4f5d6e', 'f1a2b3c4-d5e6-47f8-9a0b-1c2d3e4f5a6b', NULL, 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '案件创建', '2026-05-17T03:50:00.000Z');
 INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('1904828d-f26e-4a23-b3f5-c3eedc2ba665', '8dbb6c93-ee2b-437f-8447-c85ab49d7df6', NULL, 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '案件创建', '2026-05-18T11:26:48.546Z');
 INSERT INTO case_status_history (id, case_id, from_status, to_status, operator_id, remark, created_at) VALUES ('9ab56eb2-c337-40e9-921f-3864c639ee93', '4847ad8f-33b9-4680-a698-ad0dfa0b2cc3', NULL, 'draft', '53472e7d-b8b1-4ece-ac6a-5b33da933248', '案件创建', '2026-05-18T11:36:36.071Z');
 
@@ -2168,9 +2170,27 @@ CN 117944849 B
 从而自动控制漂浮筒达到目标规划点的时间和距离，控制系统通', '一种水面漂浮定点自沉的救援系统-发明-授权文件.pdf', 'patent', '2026-05-18T08:22:00.189Z');
 
 -- terminology: 2 条记录
-INSERT INTO terminology (id, field, term, definition, synonyms, usage_example, created_at) VALUES ('93363b5b-6fda-4dbc-a34c-8242269e9271', 'electronics', '传感器', '能感受规定的被测量并按照一定规律转换成可用输出信号的器件', '["sensor","换能器"]', '所述传感器模块用于采集环境温度数据', '2026-05-14T04:28:14.559Z');
-INSERT INTO terminology (id, field, term, definition, synonyms, usage_example, created_at) VALUES ('67b2c53d-ffb2-4fd6-bef2-7617e5e65a7e', 'electronics', '深度学习', '基于多层神经网络的机器学习方法', '["deep learning","神经网络"]', '所述AI处理单元采用深度学习模型', '2026-05-14T04:28:14.559Z');
+INSERT INTO terminology (id, field, term, definition, synonyms, usage_example, created_at)
+VALUES (
+'93363b5b-6fda-4dbc-a34c-8242269e9271',
+'electronics',
+'传感器',
+'能感受规定的被测量并按照一定规律转换成可用输出信号的器件',
+ARRAY['sensor','换能器'],
+'所述传感器模块用于采集环境温度数据',
+'2026-05-14T04:28:14.559Z'
+);
 
+INSERT INTO terminology (id, field, term, definition, synonyms, usage_example, created_at)
+VALUES (
+'67b2c53d-ffb2-4fd6-bef2-7617e5e65a7e',
+'electronics',
+'深度学习',
+'基于多层神经网络的机器学习方法',
+ARRAY['deep learning','神经网络'],
+'所述AI处理单元采用深度学习模型',
+'2026-05-14T04:28:14.559Z'
+);
 
 -- reviews: 1 条记录
 INSERT INTO reviews (id, case_id, reviewer_id, result, comments, ai_suggestions, created_at, updated_at) VALUES ('7b3ce048-b134-4d0b-883f-49af9aa876cf', 'c78fc3fc-2f17-41f9-a113-9c1f721550af', '53472e7d-b8b1-4ece-ac6a-5b33da933248', 'pending', NULL, '[]', '2026-05-17T06:23:01.169Z', '2026-05-17T06:23:01.169Z');

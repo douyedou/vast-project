@@ -245,7 +245,7 @@ Header: Authorization: Bearer <token>
 
 ### 6.1 创建专利文档
 ```
-POST /api/m07/documents
+POST /api/m07/documents/creation
 Header: Authorization: Bearer <token>
 请求：{ caseId, type: 'spec'|'claims'|'abstract'|'drawings' }
 响应：{ documentId }
@@ -290,7 +290,7 @@ Header: Authorization: Bearer <token>
 
 ### 6.7 生成权利要求书
 ```
-POST /api/m07/claims/generate
+POST /api/m07/generate
 Header: Authorization: Bearer <token>
 请求：{ specDocumentId }
 响应：{ claimsContent }
