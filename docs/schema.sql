@@ -78,6 +78,7 @@ CREATE TABLE cases (
     description TEXT,
     priority VARCHAR(20) DEFAULT 'normal' 
         CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    returned_count INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -85,6 +86,7 @@ CREATE TABLE cases (
 COMMENT ON TABLE cases IS '案件主表';
 COMMENT ON COLUMN cases.case_id IS '业务编号，如 PAT-20250101-0001';
 COMMENT ON COLUMN cases.status IS '案件状态：draft(草稿) → assigning(待分配) → searching(待检索) → confirming(待确认) → filing(待立案) → disclosure_pending(交底书补全中) → writing(撰写中) → writingcheck(撰写审核) → reviewing(审核中) → completed(已完成) / rejected(已驳回)';
+COMMENT ON COLUMN cases.returned_count IS 'M08退回修改次数，审核员退回时+1';
 
 CREATE TABLE case_files (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -108,6 +110,20 @@ CREATE TABLE case_status_history (
 );
 
 -- ============================================================
+-- 协作撰写人（M07 双文档工作台多对多）
+-- ============================================================
+
+CREATE TABLE case_engineers (
+    case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    engineer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    invited_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (case_id, engineer_id)
+);
+
+COMMENT ON TABLE case_engineers IS '案件协作撰写人，主撰写记录在 cases.engineer_id，本表存邀请的协作人';
+
+-- ============================================================
 -- 3. 交底书引擎（成员 C 负责：M06）
 -- ============================================================
 
@@ -119,11 +135,23 @@ CREATE TABLE disclosure_documents (
     status VARCHAR(20) DEFAULT 'draft' 
         CHECK (status IN ('draft', 'generating', 'completed', 'approved')),
     version INTEGER DEFAULT 1,
+    tech_problem TEXT DEFAULT '',
+    tech_feature TEXT DEFAULT '',
+    action_relation TEXT DEFAULT '',
+    tech_effect TEXT DEFAULT '',
+    key_protection TEXT DEFAULT '',
+    alternative_solution TEXT DEFAULT '',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 COMMENT ON COLUMN disclosure_documents.content_json IS '结构化交底书内容，JSON 格式存储各章节';
+COMMENT ON COLUMN disclosure_documents.tech_problem IS 'M06交底模型-技术问题文本';
+COMMENT ON COLUMN disclosure_documents.tech_feature IS 'M06交底模型-技术特征文本';
+COMMENT ON COLUMN disclosure_documents.action_relation IS 'M06交底模型-作用关系文本';
+COMMENT ON COLUMN disclosure_documents.tech_effect IS 'M06交底模型-技术效果文本';
+COMMENT ON COLUMN disclosure_documents.key_protection IS 'M06交底模型-关键保护点文本';
+COMMENT ON COLUMN disclosure_documents.alternative_solution IS 'M06交底模型-替代方案文本';
 
 CREATE TABLE knowledge_base (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -257,9 +285,12 @@ CREATE TABLE reviews (
     case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
     reviewer_id UUID REFERENCES users(id),
     result VARCHAR(20) 
-        CHECK (result IN ('pass', 'reject', 'pending')),
+        CHECK (result IN ('pass', 'reject', 'pending', 'reject-m06', 'reject-m07', 'reject-case')),
     comments TEXT,
     ai_suggestions JSONB DEFAULT '[]',
+    preliminary_done BOOLEAN DEFAULT FALSE,
+    disclosure_done BOOLEAN DEFAULT FALSE,
+    five_books_done BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -274,10 +305,15 @@ CREATE TABLE review_items (
         CHECK (severity IN ('low', 'medium', 'high', 'critical')),
     status VARCHAR(20) DEFAULT 'pending' 
         CHECK (status IN ('pending', 'resolved', 'ignored')),
+    is_blocking BOOLEAN DEFAULT FALSE,
+    step VARCHAR(20) DEFAULT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+COMMENT ON COLUMN review_items.step IS '所属审核步骤：preliminary(初审)/disclosure(交底审核)/five_books(五书审核)/NULL(手动添加)';
+
 COMMENT ON COLUMN review_items.type IS '审核类型：completeness(完整性), uniformity(统一性), novelty(新颖性), form(形式), support(支持性)';
+COMMENT ON COLUMN review_items.is_blocking IS '是否为审核结论自动生成的阻断项，结论改通过时自动清除';
 
 -- ============================================================
 -- 索引优化

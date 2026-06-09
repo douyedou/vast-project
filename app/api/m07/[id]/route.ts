@@ -71,13 +71,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       values
     )
 
-    // 保存版本快照
-    if (content !== undefined && content !== oldDoc.content) {
+    // 保存版本快照（仅 forceVersion 时）
+    const forceVersion = body.forceVersion === true
+    if (forceVersion) {
       await query(
         `INSERT INTO document_versions (document_id, content, operator_id, change_summary)
          VALUES ($1, $2, $3, $4)`,
-        [id, oldDoc.content, user.id, '内容更新']
+        [id, oldDoc.content, user.id, body.changeSummary || '手动保存版本']
       )
+
+      // ── 计算与上一版本的 diff，记录编辑日志（用于 AI 学习）──
+      const prevResult = await query(
+        `SELECT content FROM document_versions
+         WHERE document_id = $1
+         ORDER BY created_at DESC LIMIT 1 OFFSET 1`,
+        [id]
+      )
+      if (prevResult.rows.length > 0) {
+        const prevContent = prevResult.rows[0].content || ''
+        const currContent = oldDoc.content || ''  // 刚存的快照即"旧版本"
+        if (prevContent !== currContent) {
+          const prevLines = prevContent.split('\n')
+          const currLines = currContent.split('\n')
+          // 简单行级 diff
+          for (let i = 0; i < Math.max(prevLines.length, currLines.length); i++) {
+            const oldLine = prevLines[i] || ''
+            const newLine = currLines[i] || ''
+            if (oldLine !== newLine && (oldLine || newLine)) {
+              const op = !oldLine ? 'insert' : !newLine ? 'delete' : 'update'
+              await query(
+                `INSERT INTO edit_logs (document_id, paragraph_id, operation, old_value, new_value, user_id)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [id, `L${i + 1}`, op, oldLine, newLine, user.id]
+              )
+            }
+          }
+          console.log(`[版本记录] 已记录 ${Math.abs(prevLines.length - currLines.length) + Math.min(prevLines.length, currLines.length)} 行差异到 edit_logs`)
+        }
+      }
     }
 
     return NextResponse.json(success(result.rows[0], '保存成功'))

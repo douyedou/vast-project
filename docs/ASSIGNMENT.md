@@ -63,10 +63,10 @@ M05 立案模块剩余页面 + 几个跨模块公共组件。
 | P0 | 提交审核页 | `m07/submit-m08-page.tsx` | `POST /api/reviews` | ⭐⭐ |完成
 | P1 | 双文档工作台 | `m07/dual-doc-workspace.tsx` | `GET /api/cases/:id/documents` | ⭐⭐⭐ |
 | P1 | 全文审核页 | `m07/full-review-page.tsx` | `GET /api/cases/:id/documents` | ⭐⭐⭐ |完成
-| P1 | 质检仪表盘 | `m08/review-dashboard.tsx` | `GET /api/reviews` | ⭐⭐ |
-| P1 | 审核任务详情 | `m08/review-task-detail.tsx` | `GET /api/reviews/:id` | ⭐⭐ |
-| P1 | 交底书审核 | `m08/disclosure-review.tsx` | `GET/PUT /api/reviews/:id` | ⭐⭐⭐ |
-| P1 | 审核决策 | `m08/review-decision.tsx` | `PUT /api/reviews/:id` | ⭐⭐⭐ |
+| P1 | 质检仪表盘 | `m08/review-dashboard.tsx` | `GET /api/reviews` | ⭐⭐ |ok
+| P1 | 审核任务详情 | `m08/review-task-detail.tsx` | `GET /api/reviews/:id` | ⭐⭐ |ok
+| P1 | 交底书审核 | `m08/disclosure-review.tsx` | `GET/PUT /api/reviews/:id` | ⭐⭐⭐ |ok
+| P1 | 审核决策 | `m08/review-decision.tsx` | `PUT /api/reviews/:id` | ⭐⭐⭐ |ok
 
 ### 核心目标
 - **撰写 → 保存 → 提交审核 → 审核详情 → 审核决策** 全流程跑通

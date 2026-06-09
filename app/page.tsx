@@ -43,6 +43,7 @@ import { ReviewDashboard } from "@/components/vast/m08/review-dashboard"
 import { ReviewTaskList } from "@/components/vast/m08/review-task-list"
 import { ReviewTaskDetail } from "@/components/vast/m08/review-task-detail"
 import { DisclosureReviewPage } from "@/components/vast/m08/disclosure-review"
+import { FiveBooksReviewPage } from "@/components/vast/m08/five-books-review"
 import { ReviewDecisionPage } from "@/components/vast/m08/review-decision"
 // M09 组件
 import { CaseDashboard } from "@/components/vast/m09/case-dashboard"
@@ -110,6 +111,7 @@ type Page =
   | "m08-task-list"
   | "m08-task-detail"
   | "m08-disclosure-review"
+  | "m08-five-books-review"
   | "m08-review-decision"
   // M09 页面
   | "m09-dashboard"
@@ -168,6 +170,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>("login")
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('vast_token')
@@ -448,13 +451,15 @@ export default function Home() {
       case "m08-dashboard":
         return <ReviewDashboard onNavigate={handleNavigate} />
       case "m08-task-list":
-        return <ReviewTaskList onNavigate={handleNavigate} />
+        return <ReviewTaskList onNavigate={handleNavigate} onReviewSelect={setSelectedReviewId} />
       case "m08-task-detail":
-        return <ReviewTaskDetail onNavigate={handleNavigate} />
+        return <ReviewTaskDetail onNavigate={handleNavigate} reviewId={selectedReviewId} />
       case "m08-disclosure-review":
-        return <DisclosureReviewPage onNavigate={handleNavigate} />
+        return <DisclosureReviewPage onNavigate={handleNavigate} reviewId={selectedReviewId} onReviewSelect={setSelectedReviewId} />
+      case "m08-five-books-review":
+        return <FiveBooksReviewPage onNavigate={handleNavigate} reviewId={selectedReviewId} onReviewSelect={setSelectedReviewId} />
       case "m08-review-decision":
-        return <ReviewDecisionPage onNavigate={handleNavigate} />
+        return <ReviewDecisionPage onNavigate={handleNavigate} reviewId={selectedReviewId} onReviewSelect={setSelectedReviewId} />
 
       // M09 页面
       case "m09-dashboard":

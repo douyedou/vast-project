@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
 
     // 记录状态变更历史
     await query(
-      `INSERT INTO case_status_history (case_id, to_status, operator_id, remark)
-       VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO case_status_history (case_id, from_status, to_status, operator_id, remark)
+       VALUES ($1, NULL, $2, $3, $4)`,
       [result.rows[0].id, 'draft', user.id, '案件创建']
     )
 

@@ -277,7 +277,6 @@ export async function POST(request: NextRequest) {
       }
 
       if (updates.length > 0) {
-        updates.push('version = version + 1')
         updates.push('updated_at = NOW()')
         values.push(existingDoc.rows[0].id)
 
@@ -289,16 +288,6 @@ export async function POST(request: NextRequest) {
           values
         )
         savedDoc = updateResult.rows[0]
-
-        // 保存版本快照
-        if ((content !== undefined && content !== oldDoc.content) || hasChapterUpdate) {
-          const changeSummary = hasChapterUpdate ? "说明书章节编辑" : "说明书内容更新"
-          await query(
-            `INSERT INTO document_versions (document_id, content, operator_id, change_summary)
-             VALUES ($1, $2, $3, $4)`,
-            [existingDoc.rows[0].id, oldDoc.content, user.id, changeSummary]
-          )
-        }
       } else {
         const docResult = await query(
           `SELECT id, case_id, type, content, status, ai_rate, version,

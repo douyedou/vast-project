@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -24,35 +24,46 @@ interface ReviewDashboardProps {
 export function ReviewDashboard({ onNavigate }: ReviewDashboardProps) {
   const [activeTab, setActiveTab] = useState('pending')
 
-  const stats = [
-    { label: '待审核', value: 12, colorBg: 'bg-[#F5F7FA]', colorText: 'text-[#374151]', icon: Clock, page: 'm08-task-list' },
-    { label: '审核中', value: 8, colorBg: 'bg-[#EAF4FF]', colorText: 'text-[#2F80ED]', icon: TrendingUp, page: 'm08-task-list' },
-    { label: '已退回', value: 5, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
-    { label: '已通过', value: 24, colorBg: 'bg-[#F0FDF4]', colorText: 'text-[#16A34A]', icon: CheckCircle, page: 'm08-task-list' },
-    { label: '高风险', value: 3, colorBg: 'bg-[#FFF7ED]', colorText: 'text-[#EA580C]', icon: AlertTriangle, page: 'm08-task-list' },
-    { label: '超期', value: 2, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
-  ]
+  const [stats, setStats] = useState([
+    { label: '待审核', value: 0, colorBg: 'bg-[#F5F7FA]', colorText: 'text-[#374151]', icon: Clock, page: 'm08-task-list' },
+    { label: '审核中', value: 0, colorBg: 'bg-[#EAF4FF]', colorText: 'text-[#2F80ED]', icon: TrendingUp, page: 'm08-task-list' },
+    { label: '已退回', value: 0, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
+    { label: '已通过', value: 0, colorBg: 'bg-[#F0FDF4]', colorText: 'text-[#16A34A]', icon: CheckCircle, page: 'm08-task-list' },
+    { label: '高风险', value: 0, colorBg: 'bg-[#FFF7ED]', colorText: 'text-[#EA580C]', icon: AlertTriangle, page: 'm08-task-list' },
+    { label: '超期', value: 0, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
+  ])
+  const [myTasks, setMyTasks] = useState<any[]>([])
+  const [riskAlerts, setRiskAlerts] = useState<any[]>([])
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
 
-  const myTasks = [
-    { id: 'T001', caseNo: 'C2024001', title: '智能人体识别装置', status: '待审核', priority: '高', dueDate: '2024-05-10', blocking: 3 },
-    { id: 'T002', caseNo: 'C2024002', title: '机器学习优化方法', status: '审核中', priority: '中', dueDate: '2024-05-12', blocking: 0 },
-    { id: 'T003', caseNo: 'C2024003', title: '数据加密传输协议', status: '待审核', priority: '高', dueDate: '2024-05-08', blocking: 5 },
-  ]
+  useEffect(() => {
+    const token = localStorage.getItem('vast_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+    fetch('/api/m08/dashboard', { headers })
+      .then(r => r.json())
+      .then(res => {
+        if (!res?.data) return
+        const { stats: s, myTasks: t, riskAlerts: r, recentActivity: a } = res.data
 
-  const riskAlerts = [
-    { id: 'R001', type: '权利要求无支持', count: 3, severity: 'blocking', cases: ['C2024001', 'C2024004'] },
-    { id: 'R002', type: 'AI相似性超标', count: 2, severity: 'warning', cases: ['C2024002'] },
-    { id: 'R003', type: '交底不完整', count: 4, severity: 'warning', cases: ['C2024005', 'C2024006'] },
-    { id: 'R004', type: '新创性不足', count: 1, severity: 'blocking', cases: ['C2024007'] },
-    { id: 'R005', type: '图号术语异常', count: 2, severity: 'suggestion', cases: ['C2024003'] },
-  ]
+        setStats([
+          { label: '待审核', value: s.pending, colorBg: 'bg-[#F5F7FA]', colorText: 'text-[#374151]', icon: Clock, page: 'm08-task-list' },
+          { label: '审核中', value: s.reviewing, colorBg: 'bg-[#EAF4FF]', colorText: 'text-[#2F80ED]', icon: TrendingUp, page: 'm08-task-list' },
+          { label: '已退回', value: s.rejected, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
+          { label: '已通过', value: s.passed, colorBg: 'bg-[#F0FDF4]', colorText: 'text-[#16A34A]', icon: CheckCircle, page: 'm08-task-list' },
+          { label: '高风险', value: s.highRisk, colorBg: 'bg-[#FFF7ED]', colorText: 'text-[#EA580C]', icon: AlertTriangle, page: 'm08-task-list' },
+          { label: '超期', value: s.overdue, colorBg: 'bg-[#FEF2F2]', colorText: 'text-[#DC2626]', icon: AlertCircle, page: 'm08-task-list' },
+        ])
 
-  const recentActivity = [
-    { id: 'A001', action: '任务创建', caseNo: 'C2024008', time: '2024-05-05 10:30', user: '张工' },
-    { id: 'A002', action: '规则检查', caseNo: 'C2024001', time: '2024-05-05 09:45', user: '李工' },
-    { id: 'A003', action: '审核通过', caseNo: 'C2024002', time: '2024-05-04 16:20', user: '王工' },
-    { id: 'A004', action: '退回M07', caseNo: 'C2024003', time: '2024-05-04 14:15', user: '李工' },
-  ]
+        setMyTasks(t || [])
+        setRiskAlerts((r || []).map((item: any, i: number) => ({
+          ...item, id: `R${i + 1}`, cases: item.cases || [],
+        })))
+        setRecentActivity((a || []).map((item: any, i: number) => ({
+          ...item, id: `A${i + 1}`,
+        })))
+      })
+      .catch(err => console.error('M08 dashboard fetch failed', err))
+  }, [])
 
   const getSeverityStyle = (severity: string) => {
     switch (severity) {

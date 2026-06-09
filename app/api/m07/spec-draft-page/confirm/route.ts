@@ -68,19 +68,12 @@ export async function POST(request: NextRequest) {
     // 更新为 B64 + 锁定
     const updateResult = await query(
       `UPDATE patent_documents
-       SET content = $1, status = 'writing', version = version + 1, updated_at = NOW()
+       SET content = $1, status = 'writing', updated_at = NOW()
        WHERE id = $2
        RETURNING id, case_id, type, content, status, ai_rate, version,
                  tech_field, background, summary, drawings_desc, embodiment, effects,
                  created_at, updated_at`,
       [b64Content, doc.id]
-    )
-
-    // 版本快照
-    await query(
-      `INSERT INTO document_versions (document_id, content, operator_id, change_summary)
-       VALUES ($1, $2, $3, $4)`,
-      [doc.id, doc.content, user.id, '说明书确认提交，转为 docx 格式']
     )
 
     // 案件状态推进

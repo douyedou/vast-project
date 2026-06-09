@@ -18,10 +18,18 @@ export async function POST(request: NextRequest) {
     if (!caseId) return NextResponse.json(error('缺少 caseId', 400), { status: 400 })
 
     // 退回修改：cases → writing, patent_documents → writing
-    await query(
-      `UPDATE cases SET status = 'writing', updated_at = NOW() WHERE id = $1 AND status = 'writingcheck'`,
+    const revertResult = await query(
+      `UPDATE cases SET status = 'writing', updated_at = NOW() WHERE id = $1 AND status = 'writingcheck'
+       RETURNING status`,
       [caseId]
     )
+    if (revertResult.rows.length > 0) {
+      await query(
+        `INSERT INTO case_status_history (case_id, from_status, to_status, operator_id, remark)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [caseId, 'writingcheck', 'writing', user.id, '退回修改：重新撰写']
+      )
+    }
     await query(
       `UPDATE patent_documents SET status = 'writing', updated_at = NOW()
        WHERE case_id = $1 AND status = 'ai_checking'`,

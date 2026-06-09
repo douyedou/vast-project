@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react"
 interface OnlyOfficeEditorProps {
   documentId: string
   caseId?: string
+  version?: number
   onSave?: () => void
 }
 
@@ -19,6 +20,7 @@ declare global {
 
 export function OnlyOfficeEditor({
   documentId,
+  version,
   onSave,
 }: OnlyOfficeEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -75,7 +77,7 @@ export function OnlyOfficeEditor({
       destroyed = true
       editorRef.current?.destroyEditor?.()
     }
-  }, [documentId])
+  }, [documentId, version])
 
   return (
     <div className="w-full h-full relative">

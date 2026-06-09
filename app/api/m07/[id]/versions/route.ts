@@ -1,6 +1,7 @@
 /**
  * 专利文档版本历史
- * GET /api/m07/documents/:id/versions
+ * GET  /api/m07/documents/:id/versions
+ * DELETE /api/m07/documents/:id/versions?versionId=xxx
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -32,5 +33,33 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   } catch (err: any) {
     console.error('获取版本历史失败:', err)
     return NextResponse.json(error('获取版本历史失败', 500))
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const user = await requireAuth(request)
+    if (!user) return NextResponse.json(error('未登录', 401), { status: 401 })
+
+    const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const versionId = searchParams.get('versionId')
+    if (!versionId) return NextResponse.json(error('缺少 versionId', 400), { status: 400 })
+
+    // 确保版本属于该文档
+    const check = await query(
+      `SELECT id FROM document_versions WHERE id = $1 AND document_id = $2`,
+      [versionId, id]
+    )
+    if (check.rows.length === 0) {
+      return NextResponse.json(error('版本不存在', 404), { status: 404 })
+    }
+
+    await query(`DELETE FROM document_versions WHERE id = $1`, [versionId])
+
+    return NextResponse.json(success(null, '版本已删除'))
+  } catch (err: any) {
+    console.error('删除版本失败:', err)
+    return NextResponse.json(error('删除版本失败', 500), { status: 500 })
   }
 }

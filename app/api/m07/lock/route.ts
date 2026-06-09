@@ -26,11 +26,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error('当前状态不允许锁定', 400), { status: 400 })
     }
 
+    const fromStatus = caseResult.rows[0].status
+
     await transaction(async (client) => {
       // 锁定案例状态
       await client.query(
         `UPDATE cases SET status = 'writingcheck', updated_at = NOW() WHERE id = $1`,
         [caseId]
+      )
+      // 记录状态历史
+      await client.query(
+        `INSERT INTO case_status_history (case_id, from_status, to_status, operator_id, remark)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [caseId, fromStatus, 'writingcheck', user.id, '撰写完成，锁定提交审核']
       )
       // 锁定文档状态
       await client.query(
@@ -38,13 +46,18 @@ export async function POST(request: NextRequest) {
          WHERE case_id = $1 AND status = 'writing'`,
         [caseId]
       )
-      // 创建审核记录
-      await client.query(
-        `INSERT INTO reviews (case_id, reviewer_id, result)
-         VALUES ($1, (SELECT id FROM users WHERE role = 'reviewer' LIMIT 1), 'pending')
-         ON CONFLICT DO NOTHING`,
+      // 创建审核记录（随机分配审核员，避免重复）
+      const existingReview = await client.query(
+        `SELECT id FROM reviews WHERE case_id = $1 AND result = 'pending' LIMIT 1`,
         [caseId]
       )
+      if (existingReview.rows.length === 0) {
+        await client.query(
+          `INSERT INTO reviews (case_id, reviewer_id, result)
+           VALUES ($1, (SELECT id FROM users WHERE role = 'reviewer' AND status = 'active' ORDER BY RANDOM() LIMIT 1), 'pending')`,
+          [caseId]
+        )
+      }
     })
 
     return NextResponse.json(success({ caseId }, '已锁定并提交审核'))

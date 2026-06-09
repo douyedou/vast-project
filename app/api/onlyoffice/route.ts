@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           name: user.name || user.username,
         },
         customization: {
-          forcesave: true,           // 强制自动保存
+          forcesave: true,
           compactToolbar: false,
           toolbarHideFileName: false,
         },

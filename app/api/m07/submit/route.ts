@@ -33,10 +33,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(error('缺少交底书，无法提交', 400), { status: 400 })
     }
 
-    // 更新案件状态为 reviewing
+    // 更新案件状态为 reviewing（业务语义：lock 后 writingcheck → reviewing）
     await query(
       `UPDATE cases SET status = 'reviewing', updated_at = NOW() WHERE id = $1`,
       [caseId]
+    )
+
+    // 记录状态历史
+    await query(
+      `INSERT INTO case_status_history (case_id, from_status, to_status, operator_id, remark)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [caseId, 'writingcheck', 'reviewing', user.id, '提交至 M08 审核']
     )
 
     // 更新关联的 reviews 记录（如果存在）

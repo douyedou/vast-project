@@ -23,15 +23,19 @@ import { Search, Filter, Download } from 'lucide-react'
 
 interface ReviewTaskListProps {
   onNavigate?: (page: string) => void
+  onReviewSelect?: (reviewId: string) => void
 }
 
 interface CaseItem {
   id: string
+  reviewId: string
   case_id: string
   title: string
   type: string
   status: string
   reviewer_name: string | null
+  blocking_count: number
+  returned_count: number
   created_at: string
 }
 
@@ -62,7 +66,7 @@ const statusStyleMap: Record<string, string> = {
   default: 'bg-[#F5F7FA] text-[#374151]',
 }
 
-export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
+export function ReviewTaskList({ onNavigate, onReviewSelect }: ReviewTaskListProps) {
   const [tasks, setTasks] = useState<CaseItem[]>([])
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('all')
@@ -70,7 +74,7 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
 
   useEffect(() => {
     const token = localStorage.getItem('vast_token')
-    fetch('/api/cases?page=1&pageSize=50', {
+    fetch(`/api/m08/reviews?page=1&pageSize=50${status !== 'all' ? '&status=' + status : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
@@ -80,7 +84,7 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
         }
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [status])
 
   const filteredTasks = tasks.filter((task) => {
     const matchesStatus = status === 'all' || task.status === status
@@ -161,12 +165,15 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
               <TableBody>
                 {filteredTasks.map((task) => (
                   <TableRow key={task.id} className="border-[#F3F4F6] hover:bg-[#F9FAFB] cursor-pointer"
-                    onClick={() => onNavigate?.('m08-task-detail')}>
+                    onClick={() => { onReviewSelect?.(task.reviewId); onNavigate?.('m08-task-detail') }}>
                     <TableCell className="font-mono text-xs text-[#9CA3AF] pl-4">{task.case_id}</TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium text-sm text-[#111827]">{task.title}</p>
-                        <p className="text-xs text-[#9CA3AF]">{new Date(task.created_at).toLocaleDateString('zh-CN')}</p>
+                        <p className="text-xs text-[#9CA3AF]">{new Date(task.created_at).toLocaleDateString('zh-CN')}
+                          {task.blocking_count > 0 && <span className="ml-2 text-red-500">· {task.blocking_count} 阻断</span>}
+                          {task.returned_count > 0 && <span className="ml-2 text-orange-500">· 退回 {task.returned_count} 次</span>}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-[#374151]">{typeMap[task.type] || task.type}</TableCell>
@@ -178,7 +185,7 @@ export function ReviewTaskList({ onNavigate }: ReviewTaskListProps) {
                     <TableCell className="text-sm text-[#374151]">{task.reviewer_name || '未分配'}</TableCell>
                     <TableCell className="text-center pr-4">
                       <Button variant="ghost" size="sm" className="text-xs text-[#2F80ED] h-7 px-2"
-                        onClick={(e) => { e.stopPropagation(); onNavigate?.('m08-task-detail') }}>
+                        onClick={(e) => { e.stopPropagation(); onReviewSelect?.(task.reviewId); onNavigate?.('m08-task-detail') }}>
                         进入审核
                       </Button>
                     </TableCell>

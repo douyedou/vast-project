@@ -1,0 +1,11 @@
+{
+  "services": {
+    "CoAuthoring": {
+      "server": {
+        "spellchecker": {
+          "enabled": false
+        }
+      }
+    }
+  }
+}

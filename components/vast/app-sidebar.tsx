@@ -121,6 +121,7 @@ const navItems: NavItem[] = [
       { id: "m08-task-list", label: "审核任务列表", icon: List, badge: 25 },
       { id: "m08-task-detail", label: "审核任务详情", icon: FileText },
       { id: "m08-disclosure-review", label: "交底书审核", icon: BookOpen },
+      { id: "m08-five-books-review", label: "五书审核", icon: BookOpen },
       { id: "m08-review-decision", label: "审核决策", icon: CheckCircle, badge: 5 },
     ],
   },

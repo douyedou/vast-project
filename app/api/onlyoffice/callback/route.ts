@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           // 更新文档内容
           await query(
             `UPDATE patent_documents
-             SET content = $1, version = version + 1, updated_at = NOW()
+             SET content = $1, updated_at = NOW()
              WHERE id = $2`,
             [content, documentId]
           )
@@ -56,19 +56,6 @@ export async function POST(request: NextRequest) {
                LIMIT 1
              )`,
             [content, documentId]
-          )
-
-          // 记录版本快照
-          const userResult = await query(
-            'SELECT id FROM users WHERE role = $1 LIMIT 1',
-            ['admin']
-          )
-          const operatorId = userResult.rows[0]?.id
-
-          await query(
-            `INSERT INTO document_versions (document_id, content, operator_id, change_summary)
-             VALUES ($1, $2, $3, $4)`,
-            [documentId, content, operatorId, 'OnlyOffice 在线编辑保存']
           )
         } catch (err) {
           console.error('下载/保存文档失败:', err)

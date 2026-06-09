@@ -86,16 +86,6 @@ export async function POST(request: NextRequest) {
       [caseId]
     )
 
-    // 版本快照
-    await query(
-      `INSERT INTO document_versions (document_id, content, operator_id, change_summary)
-       SELECT id, content, $2, '权利要求书确认提交，转为 docx 格式'
-       FROM patent_documents
-       WHERE case_id = $1 AND type = 'claim' AND status = 'writing' AND claim_number = 0
-       LIMIT 1`,
-      [caseId, user.id]
-    )
-
     // 案件状态推进
     await query(
       `UPDATE cases SET status = 'writing', updated_at = NOW()

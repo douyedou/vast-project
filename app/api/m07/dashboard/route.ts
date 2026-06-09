@@ -17,6 +17,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { query } from "@/lib/db"
 import { requireRole, unauthorizedResponse } from "@/middleware/auth"
+import { CASE_STATUS_LABELS } from "@/lib/case-state-machine"
+
+const STATUS_LABELS: Record<string, string> = {
+  ...CASE_STATUS_LABELS,
+  writingcheck: '撰写审核',
+}
 
 console.log(
   "DATABASE_URL =",
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
          JOIN cases c3 ON c3.id = pd2.case_id
          WHERE c3.engineer_id = $1 AND pd2.type = 'claim' AND pd2.status IN ('draft','writing')) AS claims_writing,
 
-        (SELECT COUNT(*) FROM cases c4 WHERE c4.engineer_id = $1 AND c4.status = 'returned') AS returned_count,
+        (SELECT COUNT(*) FROM cases c4 WHERE c4.engineer_id = $1 AND c4.status = 'writing' AND c4.returned_count >= 1) AS returned_count,
 
         (SELECT COUNT(*) FROM cases c5 WHERE c5.engineer_id = $1 AND c5.status = 'writingcheck') AS review_pending
 
@@ -183,18 +189,15 @@ export async function GET(request: NextRequest) {
 
     const recentActivities =
       activityResult.rows.map((row) => ({
-        time: new Date(
-          row.created_at
-        ).toLocaleTimeString("zh-CN", {
+        time: new Date(row.created_at).toLocaleString("zh-CN", {
+          month: "2-digit",
+          day: "2-digit",
           hour: "2-digit",
           minute: "2-digit",
         }),
-
         action:
-          `${row.from_status || "开始"} → ${row.to_status}`,
-
+          `${STATUS_LABELS[row.from_status] || row.from_status || "开始"} → ${STATUS_LABELS[row.to_status] || row.to_status}`,
         target: row.title,
-
         user: row.name || "系统",
       }))
 
