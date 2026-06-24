@@ -48,14 +48,22 @@ export async function POST(request: NextRequest) {
 
     // 更新关联的 reviews 记录（如果存在）
     const reviewResult = await query(
-      `SELECT id FROM reviews WHERE case_id = $1 ORDER BY updated_at DESC LIMIT 1`,
+      `SELECT id, reviewer_id FROM reviews WHERE case_id = $1 ORDER BY updated_at DESC LIMIT 1`,
       [caseId]
     )
     if (reviewResult.rows.length > 0) {
+      const review = reviewResult.rows[0]
       await query(
         `UPDATE reviews SET result = 'pending', updated_at = NOW() WHERE id = $1`,
-        [reviewResult.rows[0].id]
+        [review.id]
       )
+      // 同步更新案件审核人，避免 M08 工作台因 cases.reviewer_id 为空而统计不到
+      if (review.reviewer_id) {
+        await query(
+          `UPDATE cases SET reviewer_id = $1, updated_at = NOW() WHERE id = $2 AND reviewer_id IS NULL`,
+          [review.reviewer_id, caseId]
+        )
+      }
     }
 
     return NextResponse.json(success({ message: '已提交至 M08 审核' }))

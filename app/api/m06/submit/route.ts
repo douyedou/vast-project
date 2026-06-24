@@ -51,9 +51,10 @@ export async function POST(request: NextRequest) {
 
     const content = mergeM06Content(document.content_json, caseData)
     const validation = content.aiResults.completeness || evaluateM06Completeness(content)
-    if (!validation.passed) {
+    const hasBlocking = validation.issues.some((issue: any) => issue.severity === "blocking")
+    if (hasBlocking) {
       return NextResponse.json(
-        error(`完整性校验未通过，当前质量分 ${validation.score}，请先处理阻断项`, 400)
+        error(`完整性校验存在阻断项，请先处理阻断项后再提交`, 400)
       )
     }
 

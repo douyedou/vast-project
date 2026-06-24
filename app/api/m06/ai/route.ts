@@ -104,6 +104,20 @@ async function createDisclosureVersion(
   )
 }
 
+function extractDisclosureColumns(content: M06Content): Record<string, string> {
+  const sections = content.sections || {}
+  const structure = content.structure || {}
+  const joinLines = (arr: string[] | undefined) => (arr || []).filter(Boolean).join("\n")
+  return {
+    tech_problem: sections.technicalProblem || "",
+    tech_feature: joinLines(structure.technicalFeatures),
+    action_relation: joinLines(structure.relations),
+    tech_effect: sections.beneficialEffects || "",
+    key_protection: joinLines(structure.protectionPoints),
+    alternative_solution: joinLines(structure.alternatives),
+  }
+}
+
 async function saveDocument(
   documentId: string,
   content: M06Content,
@@ -114,14 +128,30 @@ async function saveDocument(
 ) {
   const cleanContent = sanitizeM06Value(content)
   const cleanSuggestions = sanitizeM06Value(aiSuggestions || {})
+  const cols = extractDisclosureColumns(cleanContent)
   const updates = [
     "content_json = $1",
     "ai_suggestions = $2",
+    "tech_problem = $3",
+    "tech_feature = $4",
+    "action_relation = $5",
+    "tech_effect = $6",
+    "key_protection = $7",
+    "alternative_solution = $8",
     "version = version + 1",
     "updated_at = NOW()",
   ]
-  const values: any[] = [JSON.stringify(cleanContent), JSON.stringify(cleanSuggestions)]
-  let paramIndex = 3
+  const values: any[] = [
+    JSON.stringify(cleanContent),
+    JSON.stringify(cleanSuggestions),
+    cols.tech_problem,
+    cols.tech_feature,
+    cols.action_relation,
+    cols.tech_effect,
+    cols.key_protection,
+    cols.alternative_solution,
+  ]
+  let paramIndex = 9
 
   if (status) {
     updates.push(`status = $${paramIndex++}`)

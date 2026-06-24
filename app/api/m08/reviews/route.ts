@@ -25,27 +25,22 @@ export async function GET(request: NextRequest) {
     const params: any[] = []
     let idx = 1
 
-    // 默认只显示审核中的任务，可通过 ?status=completed / ?status=rejected 查看历史
+    // status=all 时返回全部审核任务，否则按指定案件状态过滤
     if (status && status !== 'all') {
       conditions.push(`c.status = $${idx}`)
       params.push(status)
       idx++
-    } else {
-      conditions.push(`c.status = 'reviewing'`)
     }
     if (keyword) {
       conditions.push(`(c.title ILIKE $${idx} OR c.case_id ILIKE $${idx})`)
       params.push(`%${keyword}%`)
       idx++
     }
-    conditions.push(`(r.reviewer_id = $${idx} OR r.reviewer_id IS NULL)`)
-    params.push(user.id)
-    idx++
-
-    const where = conditions.join(' AND ')
+    // M08 质量审核工作台显示所有待审核案件，不按当前登录用户过滤 reviewer
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const countResult = await query(
-      `SELECT COUNT(*) FROM reviews r JOIN cases c ON c.id = r.case_id WHERE ${where}`,
+      `SELECT COUNT(*) FROM reviews r JOIN cases c ON c.id = r.case_id ${where}`,
       params
     )
     const total = parseInt(countResult.rows[0].count)
@@ -62,7 +57,7 @@ export async function GET(request: NextRequest) {
        FROM reviews r
        JOIN cases c ON c.id = r.case_id
        LEFT JOIN users u ON u.id = r.reviewer_id
-       WHERE ${where}
+       ${where}
        ORDER BY c.id, r.updated_at DESC
        LIMIT $${idx} OFFSET $${idx + 1}`,
       dataParams

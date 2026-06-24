@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db'
+import { extractSpecChapters } from '@/lib/spec-chapters'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,12 +39,25 @@ export async function POST(request: NextRequest) {
           // 存 base64 编码的 docx 二进制
           const content = 'B64:' + rawBuf.toString('base64')
 
-          // 更新文档内容
+          // 提取纯文本并解析六章结构
+          const plainText = extractDocxText(rawBuf)
+          const chapters = extractSpecChapters(plainText)
+
+          // 更新文档内容及六章独立字段
           await query(
             `UPDATE patent_documents
-             SET content = $1, updated_at = NOW()
+             SET content = $1,
+                 tech_field = $3,
+                 background = $4,
+                 summary = $5,
+                 drawings_desc = $6,
+                 embodiment = $7,
+                 effects = $8,
+                 updated_at = NOW()
              WHERE id = $2`,
-            [content, documentId]
+            [content, documentId,
+             chapters.tech_field, chapters.background, chapters.summary,
+             chapters.drawings_desc, chapters.embodiment, chapters.effects]
           )
 
           // 如果是 drawings 类型，同步回对应的 document_images.description

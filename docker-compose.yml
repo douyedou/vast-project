@@ -53,7 +53,7 @@ services:
     volumes:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_logs:/var/log/onlyoffice
-      - ./onlyoffice-local.json:/etc/onlyoffice/documentserver/local.json:ro
+      - ./onlyoffice-local.json:/etc/onlyoffice/documentserver/local.json
     ports:
       - "8080:80"
     healthcheck:

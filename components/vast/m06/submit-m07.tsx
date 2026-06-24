@@ -45,6 +45,7 @@ export function SubmitM07({ caseId, onBack, onSubmit, onNavigate }: SubmitM07Pro
   const hasPriorArt = content ? Boolean(content.aiResults.priorArtComparison?.summary || content.aiResults.secondSearch?.sources.length) : false
   const hasDistinction = content ? content.structure.distinguishingFeatures.length > 0 : false
   const hasPackage = content ? Boolean(content.aiResults.package?.summary || content.aiResults.package?.markdown) : false
+  const hasNoBlocking = validation ? !validation.issues.some((i) => i.severity === "blocking") : false
 
   const checklistItems = [
     { id: "disclosure", label: "完整交底书已生成", status: hasSectionContent ? "pass" : "fail", required: true },
@@ -52,7 +53,7 @@ export function SubmitM07({ caseId, onBack, onSubmit, onNavigate }: SubmitM07Pro
     { id: "second-search", label: "二次AI检索已完成", status: hasSecondSearch ? "pass" : "fail", required: true },
     { id: "prior-art", label: "现有技术对比已完成", status: hasPriorArt ? "pass" : "fail", required: true },
     { id: "distinction", label: "区别技术特征已确认", status: hasDistinction ? "pass" : "warning", required: true },
-    { id: "completeness", label: "完整性校验无阻断", status: validation?.passed ? "pass" : "fail", required: true },
+    { id: "completeness", label: "完整性校验无阻断", status: hasNoBlocking ? "pass" : "fail", required: true },
     { id: "novelty", label: "新创性校验完成", status: content?.aiResults.initialInspection ? "pass" : "warning", required: false },
     { id: "quality", label: "质量打分完成", status: validation ? "pass" : "warning", required: false },
     { id: "patent-type", label: "专利类型已同步", status: content?.meta.patentType ? "pass" : "fail", required: true },

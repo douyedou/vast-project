@@ -22,6 +22,14 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -39,6 +47,9 @@ import {
   Download,
   Filter,
   RefreshCw,
+  CheckCircle,
+  XCircle,
+  Search as SearchIcon,
 } from "lucide-react"
 
 interface ConsultationFilingListProps {
@@ -92,6 +103,18 @@ export function ConsultationFilingList({ onNavigate, filterStatus }: Consultatio
   const [searchKeyword, setSearchKeyword] = useState("")
   const [selectedItems, setSelectedItems] = useState<string[]>([])
 
+  // 关键修复：当 filterStatus prop 变化时同步状态，避免组件复用时筛选条件不更新
+  useEffect(() => {
+    setStatusFilter(filterStatus || "all")
+  }, [filterStatus])
+
+  // 分配工程师弹窗状态
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [assignCase, setAssignCase] = useState<CaseItem | null>(null)
+  const [engineers, setEngineers] = useState<{ id: string; name: string; username: string; email: string }[]>([])
+  const [selectedEngineer, setSelectedEngineer] = useState<string>("")
+  const [assigning, setAssigning] = useState(false)
+
   useEffect(() => {
     loadCases()
   }, [])
@@ -132,6 +155,67 @@ export function ConsultationFilingList({ onNavigate, filterStatus }: Consultatio
     link.href = URL.createObjectURL(blob)
     link.download = `案件列表_${new Date().toISOString().slice(0, 10)}.csv`
     link.click()
+  }
+
+  const openAssignDialog = async (item: CaseItem) => {
+    setAssignCase(item)
+    setSelectedEngineer("")
+    setAssignOpen(true)
+    const token = localStorage.getItem("vast_token")
+    try {
+      const res = await fetch("/api/users/search", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        setEngineers(data.data || [])
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleAssign = async () => {
+    if (!assignCase || !selectedEngineer) return
+    setAssigning(true)
+    const token = localStorage.getItem("vast_token")
+    try {
+      const res = await fetch(`/api/cases/${assignCase.id}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ engineerId: selectedEngineer, status: "searching" }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        setAssignOpen(false)
+        await loadCases()
+      } else {
+        alert(data.message || "分配失败")
+      }
+    } catch {
+      alert("分配请求失败")
+    } finally {
+      setAssigning(false)
+    }
+  }
+
+  const handleUpdateStatus = async (caseId: string, newStatus: string, remark?: string) => {
+    const token = localStorage.getItem("vast_token")
+    try {
+      const res = await fetch(`/api/cases/${caseId}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const data = await res.json()
+      if (data.code === 200) {
+        await loadCases()
+      } else {
+        alert(data.message || `${remark || "状态更新"}失败`)
+      }
+    } catch {
+      alert(`${remark || "状态更新"}请求失败`)
+    }
   }
 
   const filteredCases = cases.filter((c) => {
@@ -312,19 +396,48 @@ export function ConsultationFilingList({ onNavigate, filterStatus }: Consultatio
                             <Eye className="h-4 w-4" /> 查看详情
                           </DropdownMenuItem>
                           {item.status === "assigning" && (
-                            <DropdownMenuItem className="gap-2">
+                            <DropdownMenuItem className="gap-2" onClick={() => openAssignDialog(item)}>
                               <UserPlus className="h-4 w-4" /> 分配工程师
                             </DropdownMenuItem>
+                          )}
+                          {item.status === "searching" && (
+                            <DropdownMenuItem className="gap-2" onClick={() => handleUpdateStatus(item.id, "confirming", "完成初检")}>
+                              <SearchIcon className="h-4 w-4" /> 完成初检
+                            </DropdownMenuItem>
+                          )}
+                          {item.status === "confirming" && (
+                            <>
+                              <DropdownMenuItem className="gap-2" onClick={() => handleUpdateStatus(item.id, "filing", "客户确认")}>
+                                <CheckCircle className="h-4 w-4" /> 客户确认
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-2 text-[#EF4444]" onClick={() => handleUpdateStatus(item.id, "rejected", "客户拒绝")}>
+                                <XCircle className="h-4 w-4" /> 客户拒绝
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {item.status === "filing" && (
+                            <>
+                              <DropdownMenuItem className="gap-2" onClick={() => handleUpdateStatus(item.id, "completed", "正式立案")}>
+                                <CheckCircle className="h-4 w-4" /> 正式立案
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-2 text-[#EF4444]" onClick={() => handleUpdateStatus(item.id, "rejected", "不立案归档")}>
+                                <Archive className="h-4 w-4" /> 不立案归档
+                              </DropdownMenuItem>
+                            </>
                           )}
                           {item.status === "completed" && (
                             <DropdownMenuItem className="gap-2" onClick={() => onNavigate("m06-create-model")}>
                               <Send className="h-4 w-4" /> 提交M06
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="gap-2 text-[#EF4444]" onClick={() => onNavigate("m09-scrap-cases")}>
-                            <Archive className="h-4 w-4" /> 不立案归档
-                          </DropdownMenuItem>
+                          {item.status !== "rejected" && item.status !== "confirming" && item.status !== "filing" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="gap-2 text-[#EF4444]" onClick={() => handleUpdateStatus(item.id, "rejected", "不立案归档")}>
+                                <Archive className="h-4 w-4" /> 不立案归档
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -335,6 +448,44 @@ export function ConsultationFilingList({ onNavigate, filterStatus }: Consultatio
           )}
         </CardContent>
       </Card>
+
+      {/* 分配工程师弹窗 */}
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>分配工程师</DialogTitle>
+            <DialogDescription>
+              {assignCase ? `为案件「${assignCase.title}」选择负责工程师` : "选择负责工程师"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-[300px] overflow-auto space-y-2">
+            {engineers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">暂无可用工程师</p>
+            ) : (
+              engineers.map((eng) => (
+                <div
+                  key={eng.id}
+                  className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedEngineer === eng.id
+                      ? "border-[#2F80ED] bg-[#EAF4FF]"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                  onClick={() => setSelectedEngineer(eng.id)}
+                >
+                  <div className="font-medium">{eng.name}</div>
+                  <div className="text-xs text-muted-foreground">{eng.username} {eng.email ? `· ${eng.email}` : ""}</div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={assigning}>取消</Button>
+            <Button onClick={handleAssign} disabled={!selectedEngineer || assigning} className="bg-[#2F80ED] hover:bg-[#2F80ED]/90 text-white">
+              {assigning ? "分配中..." : "确认分配"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

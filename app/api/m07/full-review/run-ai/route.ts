@@ -123,11 +123,22 @@ export async function POST(request: NextRequest) {
       const existingReview = await query(`SELECT id FROM reviews WHERE case_id = $1 LIMIT 1`, [caseId])
       let reviewId = existingReview.rows[0]?.id
       if (!reviewId) {
+        const reviewerResult = await query(
+          `SELECT id FROM users WHERE role = 'reviewer' AND status = 'active' ORDER BY RANDOM() LIMIT 1`,
+          []
+        )
+        const reviewerId = reviewerResult.rows[0]?.id
         const newReview = await query(
-          `INSERT INTO reviews (case_id, reviewer_id, result) VALUES ($1, (SELECT id FROM users WHERE role = 'reviewer' LIMIT 1), 'pending') RETURNING id`,
-          [caseId]
+          `INSERT INTO reviews (case_id, reviewer_id, result) VALUES ($1, $2, 'pending') RETURNING id`,
+          [caseId, reviewerId]
         )
         reviewId = newReview.rows[0].id
+        if (reviewerId) {
+          await query(
+            `UPDATE cases SET reviewer_id = $1, updated_at = NOW() WHERE id = $2 AND reviewer_id IS NULL`,
+            [reviewerId, caseId]
+          )
+        }
       }
       // 删旧术语项
       await query(`DELETE FROM review_items WHERE review_id = $1 AND type = 'uniformity'`, [reviewId])

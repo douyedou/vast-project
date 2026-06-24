@@ -53,6 +53,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json(error('交底书不存在', 404))
     }
 
+    function extractCols(cj: any) {
+      const s = cj?.sections || {}
+      const st = cj?.structure || {}
+      const join = (arr: string[] | undefined) => (arr || []).filter(Boolean).join("\n")
+      return {
+        tech_problem: s.technicalProblem || "",
+        tech_feature: join(st.technicalFeatures),
+        action_relation: join(st.relations),
+        tech_effect: s.beneficialEffects || "",
+        key_protection: join(st.protectionPoints),
+        alternative_solution: join(st.alternatives),
+      }
+    }
+
     const updates: string[] = []
     const values: any[] = []
     let paramIndex = 1
@@ -60,6 +74,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (contentJson !== undefined) {
       updates.push(`content_json = $${paramIndex++}`)
       values.push(JSON.stringify(contentJson))
+      const cols = extractCols(contentJson)
+      updates.push(`tech_problem = $${paramIndex++}`)
+      values.push(cols.tech_problem)
+      updates.push(`tech_feature = $${paramIndex++}`)
+      values.push(cols.tech_feature)
+      updates.push(`action_relation = $${paramIndex++}`)
+      values.push(cols.action_relation)
+      updates.push(`tech_effect = $${paramIndex++}`)
+      values.push(cols.tech_effect)
+      updates.push(`key_protection = $${paramIndex++}`)
+      values.push(cols.key_protection)
+      updates.push(`alternative_solution = $${paramIndex++}`)
+      values.push(cols.alternative_solution)
     }
     if (status !== undefined) {
       updates.push(`status = $${paramIndex++}`)

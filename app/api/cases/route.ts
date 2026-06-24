@@ -44,31 +44,31 @@ export async function GET(request: NextRequest) {
     let paramIndex = 1
 
     if (keyword) {
-      conditions.push(`(title ILIKE $${paramIndex} OR case_id ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`)
+      conditions.push(`(c.title ILIKE $${paramIndex} OR c.case_id ILIKE $${paramIndex} OR c.description ILIKE $${paramIndex})`)
       params.push(`%${keyword}%`)
       paramIndex++
     }
     if (status) {
-      conditions.push(`status = $${paramIndex}`)
+      conditions.push(`c.status = $${paramIndex}`)
       params.push(status)
       paramIndex++
     }
     if (type) {
-      conditions.push(`type = $${paramIndex}`)
+      conditions.push(`c.type = $${paramIndex}`)
       params.push(type)
       paramIndex++
     }
 
     // 非管理员只能查看自己相关的案件
     if (user.role !== 'admin') {
-      conditions.push(`(applicant_id = $${paramIndex} OR engineer_id = $${paramIndex} OR reviewer_id = $${paramIndex})`)
+      conditions.push(`(c.applicant_id = $${paramIndex} OR c.engineer_id = $${paramIndex} OR c.reviewer_id = $${paramIndex})`)
       params.push(user.id)
       paramIndex++
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-    const countResult = await query(`SELECT COUNT(*) FROM cases ${whereClause}`, params)
+    const countResult = await query(`SELECT COUNT(*) FROM cases c ${whereClause}`, params)
     const total = parseInt(countResult.rows[0].count)
 
     const dataParams = [...params, pageSize, (page - 1) * pageSize]
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(paginate(dataResult.rows, total, page, pageSize))
   } catch (err: any) {
     console.error('获取案件列表失败:', err)
-    return NextResponse.json(error('获取案件列表失败', 500))
+    return NextResponse.json(error('获取案件列表失败: ' + (err?.message || String(err)), 500))
   }
 }
 
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       `INSERT INTO cases (case_id, title, type, description, priority, applicant_id, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [caseId, title, type, description || null, priority || 'normal', user.id, 'draft']
+      [caseId, title, type, description || null, priority || 'normal', user.id, 'assigning']
     )
 
     // 记录状态变更历史

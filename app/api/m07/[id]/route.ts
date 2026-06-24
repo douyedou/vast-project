@@ -8,6 +8,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { success, error } from '@/lib/api-response'
 import { requireAuth } from '@/middleware/auth'
 import { query } from '@/lib/db'
+import { sanitizeB64Content } from '@/lib/docx'
+import { extractSpecChapters } from '@/lib/spec-chapters'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -62,6 +64,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (content !== undefined) { updates.push(`content = $${paramIndex++}`); values.push(content) }
     if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status) }
     if (aiRate !== undefined) { updates.push(`ai_rate = $${paramIndex++}`); values.push(aiRate) }
+
+    // 内容更新时，自动解析并同步六章独立字段
+    if (content !== undefined) {
+      const plainText = sanitizeB64Content(content).content
+      const chapters = extractSpecChapters(plainText)
+      updates.push(`tech_field = $${paramIndex++}`); values.push(chapters.tech_field)
+      updates.push(`background = $${paramIndex++}`); values.push(chapters.background)
+      updates.push(`summary = $${paramIndex++}`); values.push(chapters.summary)
+      updates.push(`drawings_desc = $${paramIndex++}`); values.push(chapters.drawings_desc)
+      updates.push(`embodiment = $${paramIndex++}`); values.push(chapters.embodiment)
+      updates.push(`effects = $${paramIndex++}`); values.push(chapters.effects)
+    }
+
     updates.push(`version = version + 1`)
     updates.push(`updated_at = NOW()`)
     values.push(id)

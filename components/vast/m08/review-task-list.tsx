@@ -120,7 +120,6 @@ export function ReviewTaskList({ onNavigate, onReviewSelect }: ReviewTaskListPro
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="writing">撰写中</SelectItem>
                 <SelectItem value="reviewing">审核中</SelectItem>
                 <SelectItem value="completed">已完成</SelectItem>
                 <SelectItem value="rejected">已退回</SelectItem>

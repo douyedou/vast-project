@@ -19,8 +19,6 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request)
     if (!user) return NextResponse.json(error('未登录', 401), { status: 401 })
 
-    const reviewerId = user.id
-
     // =========================
     // 1. 统计卡片
     // =========================
@@ -33,10 +31,10 @@ export async function GET(request: NextRequest) {
          WHERE c.status = 'reviewing' AND r.result = 'pending' AND r.preliminary_done = TRUE) AS reviewing,
 
         (SELECT COUNT(*) FROM reviews r JOIN cases c ON c.id = r.case_id
-         WHERE r.result = 'reject') AS rejected,
+         WHERE c.status = 'rejected' AND r.result IN ('reject', 'reject-case')) AS rejected,
 
         (SELECT COUNT(*) FROM reviews r JOIN cases c ON c.id = r.case_id
-         WHERE r.result = 'pass') AS passed,
+         WHERE c.status = 'completed' AND r.result = 'pass') AS passed,
 
         (SELECT COUNT(DISTINCT r.id) FROM reviews r
          JOIN cases c ON c.id = r.case_id
@@ -59,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
 
     // =========================
-    // 2. 我的审核任务（当前 reviewer 或未分配）
+    // 2. 我的审核任务（展示全部待审核案件，不限制当前 reviewer）
     // =========================
     const tasksResult = await query(`
       SELECT DISTINCT ON (c.id)
@@ -81,10 +79,9 @@ export async function GET(request: NextRequest) {
       JOIN cases c ON c.id = r.case_id
       LEFT JOIN users u ON u.id = r.reviewer_id
       WHERE c.status = 'reviewing' AND r.result = 'pending'
-        AND (r.reviewer_id = $1 OR r.reviewer_id IS NULL)
-      ORDER BY c.id, r.updated_at DESC
+      ORDER BY c.id, c.priority = 'urgent' DESC, c.priority = 'high' DESC, c.updated_at DESC
       LIMIT 10
-    `, [reviewerId])
+    `, [])
 
     const myTasks = tasksResult.rows.map((row: any) => ({
       id: row.review_id,

@@ -25,6 +25,16 @@ interface CaseData {
   applicant_name: string | null
   engineer_name: string | null
   reviewer_name: string | null
+  files?: { id: string; filename: string; original_name?: string; created_at: string; size?: number }[]
+}
+
+interface HistoryItem {
+  id: string
+  from_status: string
+  to_status: string
+  operator_name: string | null
+  remark: string | null
+  created_at: string
 }
 
 const typeMap: Record<string, string> = {
@@ -63,6 +73,8 @@ export function CaseDetail({ onNavigate, caseId }: CaseDetailProps) {
   const [activeTab, setActiveTab] = useState("basic")
   const [caseData, setCaseData] = useState<CaseData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   useEffect(() => {
     if (!caseId) {
@@ -81,6 +93,22 @@ export function CaseDetail({ onNavigate, caseId }: CaseDetailProps) {
       })
       .finally(() => setLoading(false))
   }, [caseId])
+
+  useEffect(() => {
+    if (!caseId || activeTab !== "history") return
+    setLoadingHistory(true)
+    const token = localStorage.getItem("vast_token")
+    fetch(`/api/cases/${caseId}/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.code === 200) {
+          setHistory(data.data || [])
+        }
+      })
+      .finally(() => setLoadingHistory(false))
+  }, [caseId, activeTab])
 
   if (loading) {
     return <div className="p-6 text-center text-muted-foreground">加载中...</div>
@@ -225,17 +253,64 @@ export function CaseDetail({ onNavigate, caseId }: CaseDetailProps) {
         </TabsContent>
         <TabsContent value="documents">
           <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>文档列表加载中...</p>
+            <CardHeader>
+              <CardTitle className="text-lg">案件文档</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(caseData.files || []).length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>暂无文档</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(caseData.files || []).map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{file.original_name || file.filename}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{new Date(file.created_at).toLocaleDateString("zh-CN")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="history">
           <Card>
-            <CardContent className="py-8 text-center text-muted-foreground">
-              <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>状态历史加载中...</p>
+            <CardHeader>
+              <CardTitle className="text-lg">状态流转历史</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingHistory ? (
+                <div className="py-8 text-center text-muted-foreground">加载中...</div>
+              ) : history.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>暂无状态历史</p>
+                </div>
+              ) : (
+                <div className="relative pl-4 border-l border-border space-y-6">
+                  {history.map((item) => (
+                    <div key={item.id} className="relative">
+                      <div className="absolute -left-[21px] top-1 h-3 w-3 rounded-full bg-primary border-2 border-background" />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium">{statusMap[item.from_status] || item.from_status}</span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="font-medium">{statusMap[item.to_status] || item.to_status}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          操作人：{item.operator_name || "系统"} · {new Date(item.created_at).toLocaleString("zh-CN")}
+                        </div>
+                        {item.remark && <div className="text-xs text-muted-foreground">备注：{item.remark}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

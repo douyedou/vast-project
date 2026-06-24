@@ -154,13 +154,25 @@ export function DisclosureReviewPage({ onNavigate, reviewId: initialReviewId, on
     if (!activeReviewId) return
     if (!isChecklistEdit && !problemForm.content.trim()) return
     const token = localStorage.getItem('vast_token')
+    if (!token) return
 
-    // 编辑六项：只改状态
+    // 编辑六项：同步更新前端状态并持久化
     if (isChecklistEdit) {
       const newStatus = problemForm.status === 'resolved'
-      setChecklist(prev => prev.map(c => c.key === (editingItem as any)?.key ? { ...c, status: newStatus } : c))
+      const updatedChecklist = checklist.map(c => c.key === (editingItem as any)?.key ? { ...c, status: newStatus } : c)
+      setChecklist(updatedChecklist)
       // 同步更新 sections 的 complete
       setSections(prev => prev.map(s => s.key === (editingItem as any)?.key ? { ...s, complete: newStatus } : s))
+
+      // 保存到后端
+      const items: Record<string, boolean> = {}
+      updatedChecklist.forEach(c => { items[c.key] = c.status })
+      await fetch('/api/m08/disclosure-review', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reviewId: activeReviewId, items }),
+      })
+
       setShowProblemDialog(false)
       return
     }

@@ -408,6 +408,7 @@ WHERE r.name = '系统管理员';
 INSERT INTO users (id, username, password_hash, name, email, role) VALUES
     ('53472e7d-b8b1-4ece-ac6a-5b33da933248', 'admin', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '系统管理员', 'admin@vast.local', 'admin'),
     ('eed9a9d8-6fa1-41c6-8e18-35b42062f087', 'engineer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '张工程师', 'eng1@vast.local', 'engineer'),
+    ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'engineer2', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '王工程师', 'eng2@vast.local', 'engineer'),
     ('00884c9f-ad3c-419a-ad1e-7b7642f9ab5c', 'reviewer1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '李审核员', 'rev1@vast.local', 'reviewer'),
     ('f036e1bb-d055-424e-92ec-0b7bf973fcef', 'applicant1', '$2b$10$9aF54htLESv148/6Ie2bdub3nbeHYIantKUhfvqkYE5t5B3pQxgga', '王交案人', 'app1@vast.local', 'applicant');
 

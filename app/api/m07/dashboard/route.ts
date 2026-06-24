@@ -210,13 +210,14 @@ export async function GET(request: NextRequest) {
         recentActivities,
       },
     })
-  } catch (error) {
-    console.error(error)
+  } catch (error: any) {
+    console.error("M07 Dashboard Error:", error?.message || error)
+    console.error("Stack:", error?.stack)
 
     return NextResponse.json(
       {
         success: false,
-        message: "获取 Dashboard 失败",
+        message: "获取 Dashboard 失败: " + (error?.message || String(error)),
       },
       { status: 500 }
     )

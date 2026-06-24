@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, Filter, Download, Eye, MoreHorizontal, ArrowRightLeft } from "lucide-react"
+import { Search, Filter, Download, Eye, MoreHorizontal, ArrowRightLeft, ChevronLeft, ChevronRight } from "lucide-react"
 
 interface AllCasesListProps {
   onNavigate: (page: string) => void
@@ -92,20 +92,37 @@ export function AllCasesList({ onNavigate, onViewDetail }: AllCasesListProps) {
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [transitionMap, setTransitionMap] = useState<Record<string, string[]>>({})
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [total, setTotal] = useState(0)
 
-  useEffect(() => {
+  const loadCases = (p: number, ps: number = pageSize) => {
+    setLoading(true)
     const token = localStorage.getItem("vast_token")
-    fetch("/api/cases?page=1&pageSize=20", {
+    const params = new URLSearchParams()
+    params.set("page", String(p))
+    params.set("pageSize", String(ps))
+    if (searchKeyword.trim()) params.set("keyword", searchKeyword.trim())
+    if (statusFilter !== "all") params.set("status", statusFilter)
+    if (typeFilter !== "all") params.set("type", typeFilter)
+    fetch(`/api/cases?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => {
         if (data.code === 200) {
           setCases(data.data.list || [])
+          setTotal(data.data.total || 0)
+          setPage(data.data.page || 1)
+          setPageSize(data.data.pageSize || ps)
         }
       })
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => {
+    loadCases(1)
+  }, [searchKeyword, statusFilter, typeFilter])
 
   const loadTransitions = async (caseId: string) => {
     if (transitionMap[caseId]) return
@@ -133,14 +150,7 @@ export function AllCasesList({ onNavigate, onViewDetail }: AllCasesListProps) {
       })
       const data = await res.json()
       if (data.code === 200) {
-        // 刷新列表
-        const listRes = await fetch("/api/cases?page=1&pageSize=20", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        const listData = await listRes.json()
-        if (listData.code === 200) {
-          setCases(listData.data.list || [])
-        }
+        loadCases(page, pageSize)
         setTransitionMap((prev) => ({ ...prev, [caseId]: [] }))
       } else {
         alert(data.message || "状态流转失败")
@@ -150,15 +160,8 @@ export function AllCasesList({ onNavigate, onViewDetail }: AllCasesListProps) {
     }
   }
 
-  const filteredCases = cases.filter((item) => {
-    const matchesSearch =
-      !searchKeyword ||
-      item.case_id?.includes(searchKeyword) ||
-      item.title?.includes(searchKeyword)
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter
-    const matchesType = typeFilter === "all" || item.type === typeFilter
-    return matchesSearch && matchesStatus && matchesType
-  })
+  // 搜索/筛选/分页已由后端处理
+  const filteredCases = cases
 
   return (
     <div className="space-y-6">
@@ -296,7 +299,28 @@ export function AllCasesList({ onNavigate, onViewDetail }: AllCasesListProps) {
                 </TableBody>
               </Table>
               <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <p className="text-sm text-muted-foreground">共 {filteredCases.length} 条记录</p>
+                <p className="text-sm text-muted-foreground">共 {total} 条记录</p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => loadCases(page - 1, pageSize)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    第 {page} / {Math.max(1, Math.ceil(total / pageSize))} 页
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= Math.ceil(total / pageSize)}
+                    onClick={() => loadCases(page + 1, pageSize)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}

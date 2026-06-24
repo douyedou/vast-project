@@ -100,6 +100,12 @@ export async function GET(request: NextRequest) {
           forcesave: true,
           compactToolbar: false,
           toolbarHideFileName: false,
+          spellcheck: false,
+          features: {
+            spellcheck: {
+              mode: false,
+            },
+          },
         },
       },
       documentType: 'word',

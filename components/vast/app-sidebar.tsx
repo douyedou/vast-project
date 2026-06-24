@@ -42,7 +42,7 @@ import {
   Search,
   GitBranch,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface NavItem {
   id: string
@@ -52,31 +52,60 @@ interface NavItem {
   children?: NavItem[]
 }
 
-const navItems: NavItem[] = [
-  {
-    id: "home",
-    label: "系统首页",
-    icon: Home,
-    children: [
-      { id: "home", label: "系统首页", icon: Home },
-    ],
-  },
-  {
-    id: "m05",
-    label: "咨询立案",
-    icon: FileText,
-    children: [
-      { id: "m05-dashboard",      label: "咨询立案工作台", icon: LayoutDashboard, badge: 18 },
-      { id: "m05-new",            label: "发起咨询",       icon: FileText },
-      { id: "m05-list",           label: "全部案件",       icon: List,        badge: 68 },
-      { id: "m05-assigning",      label: "待分配",       icon: Users,       badge: 5 },
-      { id: "m05-searching",      label: "待检索",     icon: FileCheck,   badge: 7 },
-      { id: "m05-confirming",     label: "待确认",     icon: Clock,       badge: 4 },
-      { id: "m05-filing",         label: "待立案",     icon: Send,        badge: 6 },
-      { id: "m05-completed",      label: "已立案",    icon: CheckCircle, badge: 12 },
-      { id: "m05-rejected",       label: "不立案归档",     icon: Archive,     badge: 5 },
-    ],
-  },
+interface AppSidebarProps {
+  activeItem: string
+  onNavigate: (id: string) => void
+}
+
+export function AppSidebar({ activeItem, onNavigate }: AppSidebarProps) {
+  const [expandedModules, setExpandedModules] = useState<string[]>(["home", "m05", "m06", "m07", "m08", "m09", "m10", "system"])
+  const [caseStats, setCaseStats] = useState<Record<string, number>>({})
+  const [m08Stats, setM08Stats] = useState({ dashboard: 0, taskList: 0, decision: 0 })
+
+  useEffect(() => {
+    const token = localStorage.getItem("vast_token")
+    fetch("/api/cases/stats", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.code === 200) setCaseStats(data.data || {})
+      })
+      .catch(() => {})
+
+    fetch("/api/m08/stats", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.code === 200) setM08Stats(data.data || { dashboard: 0, taskList: 0, decision: 0 })
+      })
+      .catch(() => {})
+  }, [])
+
+  const totalCases = Object.values(caseStats).reduce((a, b) => a + b, 0)
+
+  const navItems: NavItem[] = [
+    {
+      id: "home",
+      label: "系统首页",
+      icon: Home,
+      children: [
+        { id: "home", label: "系统首页", icon: Home },
+      ],
+    },
+    {
+      id: "m05",
+      label: "咨询立案",
+      icon: FileText,
+      children: [
+        { id: "m05-dashboard",      label: "咨询立案工作台", icon: LayoutDashboard, badge: 18 },
+        { id: "m05-new",            label: "发起咨询",       icon: FileText },
+        { id: "m05-list",           label: "全部案件",       icon: List,        badge: totalCases },
+        { id: "m05-assigning",      label: "待分配",       icon: Users,       badge: caseStats.assigning || 0 },
+        { id: "m05-searching",      label: "待检索",     icon: FileCheck,   badge: caseStats.searching || 0 },
+        { id: "m05-confirming",     label: "待确认",     icon: Clock,       badge: caseStats.confirming || 0 },
+        { id: "m05-filing",         label: "待立案",     icon: Send,        badge: caseStats.filing || 0 },
+        { id: "m05-completed",      label: "已立案",    icon: CheckCircle, badge: caseStats.completed || 0 },
+        { id: "m05-rejected",       label: "不立案归档",     icon: Archive,     badge: caseStats.rejected || 0 },
+      ],
+    },
   {
     id: "m06",
     label: "交底书引擎",
@@ -117,12 +146,12 @@ const navItems: NavItem[] = [
     label: "质量审核",
     icon: AlertCircle,
     children: [
-      { id: "m08-dashboard", label: "审核工作台", icon: LayoutDashboard, badge: 12 },
-      { id: "m08-task-list", label: "审核任务列表", icon: List, badge: 25 },
+      { id: "m08-dashboard", label: "审核工作台", icon: LayoutDashboard, badge: m08Stats.dashboard },
+      { id: "m08-task-list", label: "审核任务列表", icon: List, badge: m08Stats.taskList },
       { id: "m08-task-detail", label: "审核任务详情", icon: FileText },
       { id: "m08-disclosure-review", label: "交底书审核", icon: BookOpen },
       { id: "m08-five-books-review", label: "五书审核", icon: BookOpen },
-      { id: "m08-review-decision", label: "审核决策", icon: CheckCircle, badge: 5 },
+      { id: "m08-review-decision", label: "审核决策", icon: CheckCircle, badge: m08Stats.decision },
     ],
   },
   {
@@ -131,12 +160,12 @@ const navItems: NavItem[] = [
     icon: FolderArchive,
     children: [
       { id: "m09-dashboard", label: "案件工作台", icon: LayoutDashboard, badge: 8 },
-      { id: "m09-all-cases", label: "全部案件列表", icon: List, badge: 356 },
+      { id: "m09-all-cases", label: "全部案件列表", icon: List, badge: totalCases },
       { id: "m09-case-detail", label: "案件详情", icon: FileText },
-      { id: "m09-waiting-cases", label: "待交案案件", icon: Clock, badge: 67 },
-      { id: "m09-protection-center", label: "保护中心", icon: Shield, badge: 12 },
-      { id: "m09-national-ip", label: "国知局状态", icon: CheckCircle, badge: 45 },
-      { id: "m09-scrap-cases", label: "废案管理", icon: Archive, badge: 23 },
+      { id: "m09-waiting-cases", label: "待交案案件", icon: Clock, badge: 0 },
+      { id: "m09-protection-center", label: "保护中心", icon: Shield, badge: 0 },
+      { id: "m09-national-ip", label: "国知局状态", icon: CheckCircle, badge: 0 },
+      { id: "m09-scrap-cases", label: "废案管理", icon: Archive, badge: caseStats.rejected || 0 },
       { id: "m09-knowledge-assets", label: "知识资产", icon: Star },
     ],
   },
@@ -173,14 +202,6 @@ const navItems: NavItem[] = [
     ],
   },
 ]
-
-interface AppSidebarProps {
-  activeItem: string
-  onNavigate: (id: string) => void
-}
-
-export function AppSidebar({ activeItem, onNavigate }: AppSidebarProps) {
-  const [expandedModules, setExpandedModules] = useState<string[]>(["home", "m05", "m06", "m07", "m08", "m09", "m10", "system"])
 
   const toggleModule = (id: string) => {
     setExpandedModules((prev) =>

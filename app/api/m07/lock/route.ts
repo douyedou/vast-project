@@ -52,11 +52,22 @@ export async function POST(request: NextRequest) {
         [caseId]
       )
       if (existingReview.rows.length === 0) {
-        await client.query(
-          `INSERT INTO reviews (case_id, reviewer_id, result)
-           VALUES ($1, (SELECT id FROM users WHERE role = 'reviewer' AND status = 'active' ORDER BY RANDOM() LIMIT 1), 'pending')`,
-          [caseId]
+        const reviewerResult = await client.query(
+          `SELECT id FROM users WHERE role = 'reviewer' AND status = 'active' ORDER BY RANDOM() LIMIT 1`,
+          []
         )
+        const reviewerId = reviewerResult.rows[0]?.id
+        if (reviewerId) {
+          await client.query(
+            `INSERT INTO reviews (case_id, reviewer_id, result) VALUES ($1, $2, 'pending')`,
+            [caseId, reviewerId]
+          )
+          // 同步更新案件审核人，确保 cases 与 reviews 一致
+          await client.query(
+            `UPDATE cases SET reviewer_id = $1, updated_at = NOW() WHERE id = $2`,
+            [reviewerId, caseId]
+          )
+        }
       }
     })
 

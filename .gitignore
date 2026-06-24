@@ -10,7 +10,6 @@ __v0_jsx-dev-runtime.ts
 .env
 .env*.local
 
-
 # Common ignores
 node_modules
 .next/
@@ -23,18 +22,17 @@ node_modules
 package-lock.json
 yarn.lock
 
-# Uploads
+# Uploads and runtime generated images
 public/uploads/
+public/spec_images/
 
 # Python
 __pycache__/
 *.pyc
 
+# Project specific
 交底完整-授权专利/
-.env.example
-.gitignore
 .claude/
-
 
 # pnpm store
 .pnpm-store/

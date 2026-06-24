@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -23,13 +24,25 @@ interface ConsultationFilingDashboardProps {
 }
 
 export function ConsultationFilingDashboard({ onNavigate }: ConsultationFilingDashboardProps) {
+  const [statsMap, setStatsMap] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    const token = localStorage.getItem("vast_token")
+    fetch("/api/cases/stats", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.code === 200) setStatsMap(data.data || {})
+      })
+      .catch(() => {})
+  }, [])
+
   const stats = [
-    { label: "今日新建",     value: 8,  icon: Plus,        color: "bg-[#2F80ED]", page: "m05-list" },
-    { label: "待分配", value: 5,  icon: Users,       color: "bg-[#F59E0B]", page: "m05-assigning" },
-    { label: "待检索",   value: 7,  icon: Search,      color: "bg-[#8B5CF6]", page: "m05-searching" },
-    { label: "待确认",   value: 4,  icon: Clock,       color: "bg-[#06B6D4]", page: "m05-confirming" },
-    { label: "待立案",   value: 6,  icon: Send,        color: "bg-[#10B981]", page: "m05-filing" },
-    { label: "已立案",  value: 12, icon: CheckCircle, color: "bg-[#1E5EFF]", page: "m05-completed" },
+    { label: "全部案件",     key: "_total", value: Object.values(statsMap).reduce((a, b) => a + b, 0), icon: Plus,        color: "bg-[#2F80ED]", page: "m05-list" },
+    { label: "待分配",       key: "assigning", value: statsMap.assigning || 0,  icon: Users,       color: "bg-[#F59E0B]", page: "m05-assigning" },
+    { label: "待检索",       key: "searching", value: statsMap.searching || 0,  icon: Search,      color: "bg-[#8B5CF6]", page: "m05-searching" },
+    { label: "待确认",       key: "confirming", value: statsMap.confirming || 0,  icon: Clock,       color: "bg-[#06B6D4]", page: "m05-confirming" },
+    { label: "待立案",       key: "filing", value: statsMap.filing || 0,  icon: Send,        color: "bg-[#10B981]", page: "m05-filing" },
+    { label: "已立案",       key: "completed", value: statsMap.completed || 0, icon: CheckCircle, color: "bg-[#1E5EFF]", page: "m05-completed" },
   ]
 
   const recentCases = [
@@ -68,7 +81,7 @@ export function ConsultationFilingDashboard({ onNavigate }: ConsultationFilingDa
           </Button>
           <Button onClick={() => onNavigate("m05-assigning")} variant="outline" className="border-[#F59E0B] text-[#F59E0B] hover:bg-[#FFF7E6]">
             <Users className="h-4 w-4 mr-2" />
-            待分配 (5)
+            待分配 ({statsMap.assigning || 0})
           </Button>
         </div>
       </div>
@@ -171,19 +184,19 @@ export function ConsultationFilingDashboard({ onNavigate }: ConsultationFilingDa
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between text-sm cursor-pointer hover:text-[#2F80ED]" onClick={() => onNavigate("m05-assigning")}>
                 <span className="text-[#6B7280]">待分配</span>
-                <Badge variant="outline" className="bg-[#FEF3C7] text-[#D97706]">5</Badge>
+                <Badge variant="outline" className="bg-[#FEF3C7] text-[#D97706]">{statsMap.assigning || 0}</Badge>
               </div>
               <div className="flex items-center justify-between text-sm cursor-pointer hover:text-[#2F80ED]" onClick={() => onNavigate("m05-confirming")}>
                 <span className="text-[#6B7280]">待确认</span>
-                <Badge variant="outline" className="bg-[#DBEAFE] text-[#2563EB]">4</Badge>
+                <Badge variant="outline" className="bg-[#DBEAFE] text-[#2563EB]">{statsMap.confirming || 0}</Badge>
               </div>
               <div className="flex items-center justify-between text-sm cursor-pointer hover:text-[#2F80ED]" onClick={() => onNavigate("m05-filing")}>
                 <span className="text-[#6B7280]">待正式立案</span>
-                <Badge variant="outline" className="bg-[#D1FAE5] text-[#059669]">6</Badge>
+                <Badge variant="outline" className="bg-[#D1FAE5] text-[#059669]">{statsMap.filing || 0}</Badge>
               </div>
               <div className="flex items-center justify-between text-sm cursor-pointer hover:text-[#2F80ED]" onClick={() => onNavigate("m05-completed")}>
                 <span className="text-[#6B7280]">待提交M06</span>
-                <Badge variant="outline" className="bg-[#E0E7FF] text-[#4F46E5]">12</Badge>
+                <Badge variant="outline" className="bg-[#E0E7FF] text-[#4F46E5]">{statsMap.completed || 0}</Badge>
               </div>
             </CardContent>
           </Card>
